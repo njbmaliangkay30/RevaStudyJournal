@@ -17,14 +17,19 @@ export const Header: React.FC = () => {
   const { name, coins, target, pptDots, theme, blockStart, blockEnd, lang } = useAppStore();
   const [quote, setQuote] = useState("");
   const [interactiveStreak, setInteractiveStreak] = useState(3);
-  const [examDays, setExamDays] = useState(14);
+
+  const examDays = useMemo(() => {
+    if (!blockEnd) return 0;
+    const end = new Date(blockEnd);
+    end.setHours(0, 0, 0, 0);
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const diff = (end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    return Math.max(0, Math.ceil(diff));
+  }, [blockEnd]);
 
   const handleStreakClick = () => {
     setInteractiveStreak(prev => (prev >= 30 ? 0 : prev + 1));
-  };
-
-  const handleExamClick = () => {
-    setExamDays(prev => (prev > 0 ? prev - 1 : 14));
   };
 
   const streakConfig = useMemo(() => {
@@ -40,8 +45,6 @@ export const Header: React.FC = () => {
 
   const doneCount = pptDots.filter(d => d.done).length;
   const progressPct = target > 0 ? Math.min(Math.round((doneCount / target) * 100), 100) : 0;
-  const circ = 213.6;
-  const strokeOffset = circ - (circ * progressPct) / 100;
 
   const lifestyleGreeting = useMemo(() => {
     const h = new Date().getHours();
@@ -61,13 +64,6 @@ export const Header: React.FC = () => {
 
   let rankStr = progressPct >= 100 ? "👑 Ratu Pixie" : progressPct >= 75 ? "🌿 Peri Penjaga" : progressPct >= 50 ? "✨ Peri Cahaya" : "🌱 Peri Pemula";
 
-  let blockLabel = "Belum Diatur";
-  if (blockStart && blockEnd) {
-    const s = new Date(blockStart).toLocaleDateString(lang === 'id' ? 'id-ID' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' });
-    const e = new Date(blockEnd).toLocaleDateString(lang === 'id' ? 'id-ID' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' });
-    blockLabel = `${s} – ${e}`;
-  }
-
   const getThemeBg = () => {
     switch (theme) {
       case 'moon': return 'linear-gradient(160deg, #04060f 0%, #080c1c 45%, #0c1228 100%)';
@@ -79,7 +75,7 @@ export const Header: React.FC = () => {
   const glowColor = theme === 'moon' ? '#60a5fa' : theme === 'sakura' ? '#fb7185' : '#f5c842'; 
 
   return (
-    <div className="header relative z-10 px-6 pt-8 pb-10 min-h-[340px]">
+    <div className="header relative z-10 pt-8 pb-10 min-h-[340px]">
       {/* BACKGROUND DENGAN EFEK FADE-OUT KE BAWAH */}
       <div 
         className="absolute inset-0 z-[-1] pointer-events-none" 
@@ -247,23 +243,26 @@ export const Header: React.FC = () => {
       </div>
 
       {/* --- KONTEN TEKS --- */}
-      <div className="flex justify-between items-start relative z-10 pb-4">
-        <div className="text-[11px] tracking-[0.25em] uppercase text-white/50 font-bold" style={{ textShadow: '0 0 10px rgba(255,255,255,0.2)' }}>
-          {t('hdr_eyebrow')}
+      <div className="w-full max-w-md md:max-w-3xl lg:max-w-4xl xl:max-w-5xl mx-auto flex flex-col relative z-20 px-4 md:px-6 lg:px-8">
+        <div className="flex justify-between items-center relative z-10 pb-4">
+          <div className="text-[9px] sm:text-[11px] tracking-[0.1em] sm:tracking-[0.25em] uppercase text-white/80 font-bold" style={{ textShadow: '0 0 10px rgba(255,255,255,0.2)' }}>
+          {new Date().toLocaleDateString(lang === 'id' ? "id-ID" : "en-US", { weekday: "long", day: "numeric", month: "long" })}
         </div>
         
-        <motion.div 
-          whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-xl border border-gold/40 text-gold font-black text-xs cursor-pointer shadow-lg"
-        >
-          <Sparkles size={12} className="animate-pulse" />
-          <span>{coins}</span>
-        </motion.div>
+        <div className="flex flex-col gap-2 items-end">
+          <motion.div 
+            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-black/40 backdrop-blur-xl border border-gold/40 text-gold font-black text-[10px] sm:text-xs cursor-pointer shadow-lg"
+          >
+            <Sparkles size={12} className="animate-pulse" />
+            <span>{coins}</span>
+          </motion.div>
+        </div>
       </div>
 
-      <div className="relative z-10 mt-2 mb-6">
+      <div className="relative z-10 mt-2 mb-2 sm:mb-4">
         <div className="flex flex-col gap-2">
-          <div className="flex items-center flex-wrap gap-4">
+          <div className="flex items-center flex-wrap gap-2 md:gap-4">
             <motion.h1 
               animate={{ 
                 textShadow: [
@@ -278,12 +277,12 @@ export const Header: React.FC = () => {
                 ]
               }}
               transition={{ duration: 4, repeat: Infinity }}
-              className="text-4xl sm:text-[2.6rem] font-bold italic m-0 leading-none text-white font-serif tracking-tight"
+              className="text-3xl sm:text-4xl md:text-[2.6rem] font-bold italic m-0 leading-none text-white font-serif tracking-tight"
             >
               {name},
             </motion.h1>
             
-            <span className="inline-block px-3 py-1 rounded-full bg-gold/20 border border-gold/40 text-gold font-bold text-[10px] tracking-widest uppercase backdrop-blur-md shadow-[0_0_20px_rgba(245,200,66,0.3)]">
+            <span className="inline-block px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full bg-gold/20 border border-gold/40 text-gold font-bold text-[9px] sm:text-[10px] tracking-widest uppercase backdrop-blur-md shadow-[0_0_20px_rgba(245,200,66,0.3)] mt-1 sm:mt-0">
               {rankStr}
             </span>
           </div>
@@ -298,120 +297,57 @@ export const Header: React.FC = () => {
                 ]
               }}
               transition={{ duration: 3, repeat: Infinity }}
-              className="text-2xl text-gold-light mt-1 font-medium leading-tight font-serif"
+              className="text-xl sm:text-2xl text-gold-light mt-1 font-medium leading-tight font-serif"
             >
               {lifestyleGreeting}
             </motion.div>
-            <div className="text-[11px] text-white/40 mt-1 font-bold tracking-[0.1em] uppercase drop-shadow-md">
-              {new Date().toLocaleDateString(lang === 'id' ? "id-ID" : "en-US", { weekday: "long", day: "numeric", month: "long" })}
-            </div>
           </div>
         </div>
       </div>
       
-      <div className="relative z-10 space-y-5">
+      <div className="relative z-10 flex flex-col items-center justify-between gap-4 sm:gap-6 mt-1 sm:mt-2 w-full">
         
-        <AnimatePresence mode="wait">
-          <motion.div 
-            key={quote}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ 
-              opacity: 1, 
-              scale: 1,
-              textShadow: [
-                '0 0 25px rgba(255,255,255,0.5)',
-                '0 0 45px rgba(255,255,255,0.8)',
-                '0 0 25px rgba(255,255,255,0.5)'
-              ],
-              filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.3))'
-            }}
-            transition={{ duration: 0.8 }}
-            className="relative pr-16"
-          >
+        {/* QUOTE */}
+        <div className="w-full">
+          <AnimatePresence mode="wait">
             <motion.div 
-              className="text-xl text-white font-medium leading-relaxed max-w-[85%] italic relative z-10"
-              style={{ fontFamily: '"Cormorant Garamond", serif' }}
+              key={quote}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ 
+                opacity: 1, 
+                scale: 1,
+                textShadow: [
+                  '0 0 25px rgba(255,255,255,0.5)',
+                  '0 0 45px rgba(255,255,255,0.8)',
+                  '0 0 25px rgba(255,255,255,0.5)'
+                ],
+                filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.3))'
+              }}
+              transition={{ duration: 0.8 }}
+              className="relative"
             >
-              <span className="text-gold text-2xl font-serif mr-1">“</span>
-              {quote}
-              <span className="text-gold text-2xl font-serif ml-1">”</span>
+              <motion.div 
+                className="text-xl sm:text-2xl pt-2 sm:pt-0 text-white font-medium leading-relaxed w-full italic relative z-10 text-center"
+                style={{ fontFamily: '"Cormorant Garamond", serif' }}
+              >
+                <span className="text-gold text-2xl font-serif mr-1">“</span>
+                {quote}
+                <span className="text-gold text-2xl font-serif ml-1">”</span>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        </AnimatePresence>
-      </div>
-
-      <div className="flex flex-col sm:flex-row items-center sm:items-stretch gap-6 mt-6 sm:mt-10 p-5 bg-white/[0.03] backdrop-blur-md rounded-3xl border border-white/10 relative z-10 shadow-2xl text-center sm:text-left">
-        <motion.div 
-          animate={{ 
-            y: [-4, 4, -4],
-            filter: [
-              'drop-shadow(0 0 15px rgba(245,200,66,0.3))',
-              'drop-shadow(0 0 25px rgba(245,200,66,0.5))',
-              'drop-shadow(0 0 15px rgba(245,200,66,0.3))'
-            ]
-          }}
-          transition={{ 
-            duration: 5, 
-            repeat: Infinity, 
-            ease: "easeInOut" 
-          }}
-          className="relative w-28 h-28 shrink-0 flex items-center justify-center"
-        >
-          <svg width="112" height="112" viewBox="0 0 80 80" className="-rotate-90">
-            <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
-            <circle cx="40" cy="40" r="34" fill="none" stroke="url(#goldGrad)" strokeWidth="6" strokeLinecap="round" strokeDasharray="213.6" strokeDashoffset={strokeOffset} className="transition-all duration-1000 ease-out" />
-            
-            {progressPct > 0 && (
-              <g className="transition-all duration-1000 ease-out" style={{ transform: `rotate(${progressPct * 3.6}deg)`, transformOrigin: '40px 40px' }}>
-                <circle cx="74" cy="40" r="7" fill="rgba(245, 200, 66, 0.15)" className="animate-pulse" filter="blur(2px)" />
-                <circle cx="74" cy="40" r="4" fill="rgba(245, 200, 66, 0.3)" className="animate-pulse" filter="blur(1px)" />
-                <circle cx="74" cy="40" r="2.5" fill="#ffffff" filter="drop-shadow(0px 0px 4px rgba(255,255,255,1))" />
-              </g>
-            )}
-
-            <defs>
-              <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#fff3ad" />
-                <stop offset="50%" stopColor="#f5c842" />
-                <stop offset="100%" stopColor="#b8900a" />
-              </linearGradient>
-            </defs>
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center pt-1">
-            <span className="text-[26px] font-black text-white drop-shadow-md leading-none">{progressPct}%</span>
-            <span className="text-[9px] font-bold text-gold uppercase tracking-wider drop-shadow-[0_0_8px_rgba(245,200,66,0.8)] mt-0.5">Selesai</span>
-          </div>
-        </motion.div>
-        
-        <div className="flex-1 flex flex-col justify-center items-center sm:items-start gap-2 w-full">
-          <div className="text-[10px] font-black text-white/40 tracking-[0.15em] uppercase">
-            TARGET BELAJAR
-          </div>
-          
-          <div className="flex items-baseline justify-center sm:justify-start gap-1.5 -mt-1">
-            <span className="text-3xl font-serif font-black text-white drop-shadow-md">{doneCount}</span>
-            <span className="text-lg font-medium text-white/50">/ {target}</span>
-            <span className="text-xs font-bold text-gold tracking-wider uppercase ml-1">Slide</span>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-1">
-            <div className="flex items-center gap-1.5 text-[10px] font-bold text-white/60 bg-black/30 w-fit px-3 py-1.5 rounded-full border border-white/5 shadow-inner">
-              <Sparkles size={11} className="text-gold animate-pulse" />
-              <span className="drop-shadow-sm">{blockLabel}</span>
-            </div>
-            
-          </div>
+          </AnimatePresence>
         </div>
 
-        <div className="w-full sm:w-auto sm:ml-auto flex shrink-0 sm:pl-6 pt-4 sm:pt-0 border-t sm:border-t-0 sm:border-l border-white/10 mt-2 sm:mt-0">
-          <div className="flex gap-3 justify-center w-full sm:w-[12rem]">
+        {/* WIDGETS UJIAN & STREAK */}
+        <div className="flex shrink-0 justify-center w-full mt-2 md:mt-4">
+          <div className="flex flex-row gap-4 justify-center w-full md:max-w-3xl">
             
             {/* Ujian Widget */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={handleExamClick}
-              className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border transition-all duration-300 flex-1 aspect-[4/3] sm:aspect-square relative overflow-hidden group ${
+              className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-2 md:gap-4 p-3 md:py-3 md:px-5 rounded-xl border transition-all duration-300 flex-1 aspect-[4/3] md:aspect-auto relative overflow-hidden group ${
+
                 examDays === 0
                   ? 'border-rose-400 text-white shadow-[0_0_20px_rgba(243,24,100,0.6)]'
                   : examDays <= 3 
@@ -469,10 +405,10 @@ export const Header: React.FC = () => {
               {/* Hover Highlight Overlay */}
               <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity z-0 pointer-events-none" />
 
-              <CalendarDays size={22} className={`relative z-10 filter drop-shadow-md ${examDays === 0 ? 'text-rose-300 animate-pulse' : examDays <= 3 ? 'text-rose-400 animate-pulse' : examDays <= 7 ? 'text-orange-400' : 'text-emerald-400'}`} />
-              <div className="text-[10px] font-bold text-center leading-tight relative w-full z-10 mt-auto">
-                <div className="uppercase opacity-80 text-[8px] tracking-wider mb-0.5">{examDays === 0 ? 'Hari H' : 'Ujian'}</div>
-                <div className="flex items-baseline justify-center gap-0.5 h-6">
+              <CalendarDays size={24} className={`relative z-10 shrink-0 filter drop-shadow-md ${examDays === 0 ? 'text-rose-300 animate-pulse' : examDays <= 3 ? 'text-rose-400 animate-pulse' : examDays <= 7 ? 'text-orange-400' : 'text-emerald-400'}`} />
+              <div className="text-[10px] md:text-xs font-bold text-center md:text-left leading-tight relative w-full md:w-auto z-10 mt-auto md:mt-0">
+                <div className="uppercase opacity-80 text-[8px] md:text-[9px] tracking-wider mb-0.5">{examDays === 0 ? 'Hari H' : 'Ujian'}</div>
+                <div className="flex items-baseline justify-center md:justify-start gap-0.5 h-6 md:h-auto">
                   <AnimatePresence mode="popLayout">
                     {examDays === 0 ? (
                       <motion.div
@@ -484,7 +420,7 @@ export const Header: React.FC = () => {
                           scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" },
                           opacity: { duration: 0.4 }
                         }}
-                        className="text-[14px] font-black tracking-tighter text-rose-300 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] flex items-center"
+                        className="text-[14px] md:text-base font-black tracking-tighter text-rose-300 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] flex items-center leading-none"
                       >
                         THE DAY
                       </motion.div>
@@ -496,10 +432,10 @@ export const Header: React.FC = () => {
                         exit={{ opacity: 0, y: -5 }}
                         className="flex items-baseline gap-0.5"
                       >
-                        <motion.span key={examDays} initial={{ y: -5, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-lg font-black tracking-tighter">
+                        <motion.span key={examDays} initial={{ y: -5, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="text-lg md:text-2xl font-black tracking-tighter leading-none">
                           {examDays}
                         </motion.span>
-                        <span className="text-[8px] font-medium opacity-80 uppercase tracking-widest ml-0.5">Hari</span>
+                        <span className="text-[8px] md:text-[10px] font-medium opacity-80 uppercase tracking-widest ml-0.5">Hari</span>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -512,7 +448,7 @@ export const Header: React.FC = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={handleStreakClick}
-              className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl transition-all duration-500 flex-1 aspect-[4/3] sm:aspect-square relative group ${streakConfig.text} ${streakConfig.shadow}`}
+              className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-2 md:gap-4 p-3 md:py-3 md:px-5 rounded-xl border border-transparent transition-all duration-500 flex-1 aspect-[4/3] md:aspect-auto relative overflow-hidden group ${streakConfig.text} ${streakConfig.shadow}`}
             >
               {/* Widget Background & Static Border */}
               <div className={`absolute inset-0 rounded-xl border ${streakConfig.border} ${streakConfig.bg} backdrop-blur-md z-10 transition-all duration-500`} />
@@ -586,27 +522,31 @@ export const Header: React.FC = () => {
                 </div>
               )}
               
-              <motion.div animate={{ scale: streakConfig.scale }} transition={{ type: "spring", bounce: 0.5 }} className="relative z-20 my-0.5">
+              <motion.div animate={{ scale: streakConfig.scale }} transition={{ type: "spring", bounce: 0.5 }} className="relative z-20 my-0.5 shrink-0">
                 <Flame size={24} className={`${streakConfig.color} filter drop-shadow-[0_0_8px_rgba(255,255,255,0.4)] ${interactiveStreak >= 3 ? 'animate-pulse' : ''}`} />
               </motion.div>
               
-              <div className="text-[10px] font-bold text-center leading-tight relative w-full mt-auto z-20">
-                <div className="flex items-baseline justify-center gap-0.5">
+              <div className="text-[10px] md:text-xs font-bold text-center md:text-left leading-tight relative w-full md:w-auto mt-auto md:mt-0 z-20">
+                <div className="uppercase opacity-80 text-[8px] md:text-[9px] tracking-wider mb-0.5">
+                  {interactiveStreak >= 7 ? streakConfig.label : 'DAILY'}
+                </div>
+                <div className="flex items-baseline justify-center md:justify-start gap-0.5 h-6 md:h-auto">
                   <AnimatePresence mode="popLayout">
-                    <motion.span key={interactiveStreak} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-lg font-black tracking-tighter">
+                    <motion.span key={interactiveStreak} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-lg md:text-2xl font-black tracking-tighter leading-none">
                       {interactiveStreak}
                     </motion.span>
                   </AnimatePresence>
-                  <span className="text-[9px] font-medium opacity-80 uppercase tracking-widest ml-0.5">Hari</span>
+                  <span className="text-[8px] md:text-[10px] font-medium opacity-80 uppercase tracking-widest ml-0.5">Hari</span>
                 </div>
-                <div className="uppercase opacity-80 text-[7px] tracking-widest mt-0.5 whitespace-nowrap font-black">
-                  {interactiveStreak >= 7 ? streakConfig.label + ' STREAK' : 'STREAK'}
+                <div className="uppercase opacity-80 text-[7px] md:text-[8px] tracking-widest mt-0.5 md:mt-1 whitespace-nowrap font-black">
+                  STREAK
                 </div>
               </div>
             </motion.button>
 
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

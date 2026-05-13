@@ -18,7 +18,18 @@ export const MemoryGame: React.FC = () => {
   const [flippedCards, setFlippedCards] = useState<number[]>([]);
   const [moves, setMoves] = useState(0);
   const [isWon, setIsWon] = useState(false);
-  const { addCoins } = useAppStore();
+  const { addCoins, theme } = useAppStore();
+
+  useEffect(() => {
+    if (isWon) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+      document.documentElement.style.overflow = 'unset';
+    }
+  }, [isWon]);
+
 
   const initGame = () => {
     const shuffled = [...SYMBOLS, ...SYMBOLS]
@@ -133,20 +144,30 @@ export const MemoryGame: React.FC = () => {
             animate={{ scale: 1, opacity: 1 }}
             className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm"
           >
-            <motion.div className="glass-card p-12 text-center max-w-sm w-full bg-gradient-to-br from-green-deep to-forest border-gold/30">
-              <div className="w-20 h-20 bg-gold/20 rounded-full flex items-center justify-center text-gold mx-auto mb-6 shadow-[0_0_40px_rgba(245,200,66,0.4)]">
-                <Trophy size={40} />
+            <motion.div className={`relative p-12 text-center max-w-sm w-full backdrop-blur-2xl rounded-[2rem] shadow-2xl overflow-hidden border ${
+              theme === 'moon' 
+                ? 'bg-slate-900/50 border-gold/40 shadow-[0_0_50px_-12px_rgba(245,200,66,0.25)]' :
+              theme === 'sakura' 
+                ? 'bg-rose-950/50 border-gold/40 shadow-[0_0_50px_-12px_rgba(245,200,66,0.25)]' :
+              'bg-emerald-950/50 border-gold/40 shadow-[0_0_50px_-12px_rgba(245,200,66,0.25)]'
+            }`}>
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-gold/10 blur-3xl rounded-full pointer-events-none" />
+              
+              <div className="relative z-10">
+                <div className="w-20 h-20 bg-gold/20 rounded-full flex items-center justify-center text-gold mx-auto mb-6 shadow-[0_0_40px_rgba(245,200,66,0.4)]">
+                  <Trophy size={40} />
+                </div>
+                <h2 className="font-serif text-3xl text-white">Magical Victory!</h2>
+                <p className="text-white/60 mt-2 text-sm leading-relaxed">
+                  Kamu telah menyusun fragmen memori yang hilang. Kamu mendapatkan <span className="text-gold font-bold">✨ 25 Coins</span>!
+                </p>
+                <button 
+                  onClick={initGame}
+                  className="mt-8 w-full bg-gold/90 hover:bg-gold text-green-deep font-bold py-4 rounded-2xl shadow-[0_10px_20px_rgba(245,200,66,0.2)] hover:scale-[1.02] active:scale-95 transition-all"
+                >
+                  Main Lagi
+                </button>
               </div>
-              <h2 className="font-serif text-3xl text-white">Magical Victory!</h2>
-              <p className="text-white/60 mt-2 text-sm leading-relaxed">
-                Kamu telah menyusun fragmen memori yang hilang. Kamu mendapatkan <span className="text-gold font-bold">✨ 25 Coins</span>!
-              </p>
-              <button 
-                onClick={initGame}
-                className="mt-8 w-full bg-gold text-green-deep font-bold py-4 rounded-2xl shadow-[0_10px_20px_rgba(245,200,66,0.2)] hover:scale-105 active:scale-95 transition-all"
-              >
-                Main Lagi
-              </button>
             </motion.div>
           </motion.div>
         )}

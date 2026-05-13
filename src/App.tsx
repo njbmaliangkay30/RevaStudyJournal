@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './components/layout/Header';
 import { TabBar } from './components/layout/TabBar';
 import { Dashboard } from './components/features/Dashboard';
@@ -11,6 +11,8 @@ import { PPTTracker } from './components/features/PPTTracker';
 import { PomodoroTimer } from './components/features/PomodoroTimer';
 import { Flashcards } from './components/features/Flashcards';
 import { MemoryGame } from './components/features/MemoryGame';
+import { BlockSetupModal } from './components/modals/BlockSetupModal';
+import { ExamScoreModal } from './components/modals/ExamScoreModal';
 import { Fairylights } from './components/ui/Fairylights';
 import { motion, AnimatePresence } from 'motion/react';
 import { Star, Shield, Palette, Volume2 } from 'lucide-react';
@@ -18,7 +20,15 @@ import { useAppStore } from './store/useAppStore';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const { theme, setTheme } = useAppStore();
+  const { theme, setTheme, checkExamDay, isFirstTimeSetup, needsExamScore } = useAppStore();
+
+  useEffect(() => {
+    checkExamDay();
+    const interval = setInterval(() => {
+      checkExamDay();
+    }, 60000); // Check every minute just in case
+    return () => clearInterval(interval);
+  }, [checkExamDay]);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -103,23 +113,40 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen pb-32 selection:bg-gold/30 relative">
+    <div className="min-h-screen selection:bg-gold/30 relative">
       <Fairylights />
-      <Header />
+      <BlockSetupModal />
+      <ExamScoreModal />
       
-      <main className="max-w-md mx-auto px-6 mt-8 relative z-10">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, scale: 0.98, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 1.02, y: -10 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-          >
-            {renderContent()}
-          </motion.div>
-        </AnimatePresence>
-      </main>
+      {/* Main Layout Container */}
+      <div className="flex min-h-screen">
+        {/* Left padding for sidebar on desktop */}
+        <div className="hidden md:block w-[72px] shrink-0" />
+        
+        {/* Content Area */}
+        <div className="flex-1 flex flex-col items-center pb-32 md:pb-12 overflow-x-hidden w-full">
+          {/* Header fills the whole width so background isn't cut off */}
+          <div className="w-full relative z-10 transition-all duration-300">
+            <Header />
+          </div>
+          
+          <div className="w-full max-w-md md:max-w-3xl lg:max-w-4xl xl:max-w-5xl relative z-10 transition-all duration-300">
+            <main className="px-4 md:px-6 lg:px-8 mt-4 lg:mt-8 relative z-10 pb-8">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 1.02, y: -10 }}
+                  transition={{ duration: 0.3, ease: 'easeOut' }}
+                >
+                  {renderContent()}
+                </motion.div>
+              </AnimatePresence>
+            </main>
+          </div>
+        </div>
+      </div>
 
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
       

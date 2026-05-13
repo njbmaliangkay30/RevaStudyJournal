@@ -1,96 +1,302 @@
-import React from 'react';
-import { motion } from 'motion/react';
-import { Flame, Star, Trophy, Calendar } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Trophy, BarChart3, CheckCircle2, Clock, Star, Target, Zap } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
 export const Dashboard: React.FC = () => {
-  const { profile } = useAppStore();
+    const { profile, target, pptDots, blockStart, blockEnd, lang } = useAppStore();
+    const [leaderboardTab, setLeaderboardTab] = useState<'score' | 'recent'>('score');
+    const doneCount = pptDots ? pptDots.filter(d => d.done).length : 0;
+    const safeTarget = typeof target === 'number' ? target : 0;
+    const remaining = Math.max(0, safeTarget - doneCount);
+    const progress = safeTarget > 0 ? Math.min(100, Math.round((doneCount / safeTarget) * 100)) : 0;
+    
+    const daysLeft = blockEnd ? Math.max(1, Math.ceil((new Date(blockEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 1;
+    const idealDaily = Math.ceil(remaining / daysLeft);
 
-  const stats = [
-    { label: 'Siklus Belajar', value: profile?.streak || 0, icon: Flame, color: 'text-orange-400' },
-    { label: 'Level Peri', value: 'Lv. 1', icon: Star, color: 'text-gold' },
-    { label: 'Total Slide', value: 42, icon: Trophy, color: 'text-gold-light' },
-  ];
+    let blockLabel = "Belum Diatur";
+    let subTitle = "";
+    if (blockStart && blockEnd) {
+      const s = new Date(blockStart).toLocaleDateString(lang === 'id' ? 'id-ID' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+      const e = new Date(blockEnd).toLocaleDateString(lang === 'id' ? 'id-ID' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+      subTitle = `${s} – ${e}`;
+      blockLabel = useAppStore.getState().blockName || "Target Belajar";
+    }
+
+    const blockLeaderboard = [
+      { id: 'b1', name: 'Blok 1: Kardiovaskuler', slides: 145, total: 150, efficiency: 96, score: 92, lastActive: '2 jam yang lalu', lastActiveMs: Date.now() - 2 * 3600000 },
+      { id: 'b2', name: 'Blok 2: Respirasi', slides: 89, total: 100, efficiency: 89, score: 85, lastActive: '1 hari yang lalu', lastActiveMs: Date.now() - 24 * 3600000 },
+      { id: 'b3', name: 'Blok 3: Gastrointestinal', slides: 60, total: 120, efficiency: 50, score: 65, lastActive: '3 hari yang lalu', lastActiveMs: Date.now() - 3 * 24 * 3600000 },
+      { id: 'b4', name: 'Blok 4: Saraf', slides: 120, total: 120, efficiency: 100, score: 95, lastActive: 'Baru saja', lastActiveMs: Date.now() - 5 * 60000 },
+    ];
+
+    const displayBlocks = leaderboardTab === 'score' 
+      ? [...blockLeaderboard].sort((a, b) => b.score - a.score)
+      : [...blockLeaderboard].sort((a, b) => b.lastActiveMs - a.lastActiveMs);
+
+    const weeklyActivity = [
+      { day: 'Sen', slides: 10 },
+      { day: 'Sel', slides: 25 },
+      { day: 'Rab', slides: 5 },
+      { day: 'Kam', slides: 40 },
+      { day: 'Jum', slides: 15 },
+      { day: 'Sab', slides: 35 },
+      { day: 'Min', slides: 20 },
+    ];
+    const maxSlides = Math.max(...weeklyActivity.map(d => d.slides));
+
+    // Get recent completed slides from pptDots (ones that have a title and are done)
+    const recentReadings = pptDots && pptDots.length > 0 
+      ? pptDots
+          .filter(dot => dot.done && dot.title)
+          .map((dot, index) => ({
+            id: dot.id,
+            title: dot.title,
+            slides: 1, // Each dot represents 1 slide here
+            time: 'Baru saja' // Without a timestamp in dot, we just use a placeholder
+          }))
+          .slice(-3)
+          .reverse()
+      : [
+          { id: '1', title: 'Belum ada progress', slides: 0, time: '-' }
+        ];
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Card */}
+    <div className="space-y-4 sm:space-y-6">
+      {/* Target Belajar Progress */}
       <motion.div 
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="glass-card p-6 bg-gradient-to-br from-gold/20 via-transparent to-transparent overflow-hidden relative group"
+        className="glass-card p-4 sm:p-6 bg-gradient-to-br from-gold/20 via-transparent to-transparent flex flex-col gap-4 sm:gap-6 relative group"
       >
-        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-          <Calendar size={100} />
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="font-serif text-3xl text-white">{blockLabel}</h2>
+            <div className="flex items-center gap-1.5 mt-1">
+              <Star size={10} className="text-gold" />
+              <p className="text-white/50 text-[10px] uppercase tracking-[0.2em] font-black">
+                {subTitle}
+              </p>
+            </div>
+          </div>
+          <div className="w-16 h-16 rounded-full border-[3px] border-white/5 flex items-center justify-center relative shadow-[inset_0_0_10px_rgba(245,200,66,0.1)]">
+            <svg viewBox="0 0 36 36" className="w-16 h-16 absolute -inset-[3px] origin-center rotate-[-90deg]">
+              <path
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+                fill="none"
+                stroke="rgba(245, 200, 66, 0.15)"
+                strokeWidth="2"
+              />
+              <motion.path
+                initial={{ strokeDasharray: "0, 100" }}
+                animate={{ strokeDasharray: `${progress}, 100` }}
+                transition={{ duration: 1.5, ease: "easeOut" }}
+                d="M18 2.0845
+                  a 15.9155 15.9155 0 0 1 0 31.831
+                  a 15.9155 15.9155 0 0 1 0 -31.831"
+                fill="none"
+                stroke="#f5c842"
+                strokeWidth="2"
+                strokeLinecap="round"
+                className="drop-shadow-[0_0_8px_rgba(245,200,66,0.6)]"
+              />
+            </svg>
+            <span className="font-bold text-white text-base">{progress}%</span>
+          </div>
         </div>
-        <div className="relative z-10">
-          <h2 className="font-serif text-3xl text-white">Kilau Harian</h2>
-          <p className="text-white/40 text-[10px] mt-1 uppercase tracking-[0.3em] font-black">
-            {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-          </p>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mt-2">
+          {/* Progress */}
+          <div className="bg-black/20 rounded-2xl p-4 border border-white/10 shadow-inner flex flex-col justify-center">
+            <div className="text-[9px] sm:text-[10px] text-white/50 font-bold tracking-widest uppercase mb-1 drop-shadow-sm flex items-center gap-1.5">
+              <CheckCircle2 size={10} className="text-emerald-400" />
+              Terselesaikan
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-serif font-black text-white drop-shadow-md">{doneCount}</span>
+              <span className="text-[10px] sm:text-xs text-white/40 font-medium">/ <span className="text-white/60">{safeTarget}</span> slide</span>
+            </div>
+          </div>
           
-          <div className="mt-8 flex items-center gap-5">
-            <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center font-serif text-4xl text-gold shadow-[0_0_20px_rgba(245,200,66,0.1)]">
-              {new Date().getDate()}
+          {/* Remaining */}
+          <div className="bg-black/20 rounded-2xl p-4 border border-white/10 shadow-inner flex flex-col justify-center">
+            <div className="text-[9px] sm:text-[10px] text-white/50 font-bold tracking-widest uppercase mb-1 drop-shadow-sm flex items-center gap-1.5">
+              <Target size={10} className="text-rose-400" />
+              Sisa Target
             </div>
-            <div>
-              <p className="text-gold/50 text-[10px] font-black uppercase tracking-widest">Kutipan Hari Ini</p>
-              <p className="text-white/90 text-base mt-0.5 italic font-serif leading-tight">"Kecil demi kecil, lama-lama jadi peri sakti."</p>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-2xl sm:text-3xl font-serif font-black text-rose-100 drop-shadow-md">{remaining}</span>
+              <span className="text-[10px] sm:text-xs text-white/40 font-medium">slide</span>
             </div>
+          </div>
+
+          {/* Ideal Daily */}
+          <div className="col-span-2 md:col-span-1 bg-black/20 rounded-2xl p-4 border border-white/10 shadow-inner overflow-hidden relative group">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-gold/10 rounded-full blur-2xl group-hover:bg-gold/20 transition-all pointer-events-none" />
+            <div className="text-[9px] sm:text-[10px] text-white/50 font-bold tracking-widest uppercase mb-1 drop-shadow-sm flex items-center gap-1.5 relative z-10">
+              <Zap size={10} className="text-gold" />
+              Ideal Harian
+            </div>
+            <div className="flex items-baseline gap-1.5 relative z-10">
+              <span className="text-2xl sm:text-3xl font-serif font-black text-gold drop-shadow-md">{idealDaily}</span>
+              <span className="text-[10px] sm:text-xs text-white/40 font-medium">slide <span className="opacity-60">/hr</span></span>
+            </div>
+          </div>
+        </div>
+
+        {/* Riwayat Bacaan Hari Ini */}
+        <div className="mt-2 bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
+          <div className="text-[10px] text-white/60 font-bold uppercase tracking-widest flex justify-between items-center mb-1">
+            <span>Riwayat Selesai Hari Ini</span>
+            {doneCount >= safeTarget && safeTarget > 0 && <span className="text-emerald-400">Target Tercapai! 🎉</span>}
+          </div>
+          
+          <div className="flex flex-col gap-2">
+            {recentReadings.map((reading) => (
+              <div key={reading.id} className="bg-black/30 flex items-center justify-between p-3 rounded-xl border border-white/5">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gold/10 flex items-center justify-center shrink-0">
+                    <CheckCircle2 size={14} className="text-gold" />
+                  </div>
+                  <div>
+                    <h4 className="text-white/90 font-bold text-xs sm:text-sm">{reading.title}</h4>
+                    <p className="text-white/40 text-[9px] uppercase tracking-wider font-bold mt-0.5">{reading.slides} Slide</p>
+                  </div>
+                </div>
+                <div className="text-[9px] font-bold text-white/30 uppercase tracking-widest">{reading.time}</div>
+              </div>
+            ))}
           </div>
         </div>
       </motion.div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-3 gap-3">
-        {stats.map((stat, idx) => (
-          <motion.div
-            key={stat.label}
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: idx * 0.1 }}
-            className="glass-card p-4 text-center flex flex-col items-center hover:bg-white/5 transition-colors border-white/5"
-          >
-            <stat.icon size={20} className={stat.color} />
-            <motion.div 
-              animate={{ 
-                textShadow: [
-                  `0 0 10px rgba(255,255,255,0.1)`,
-                  `0 0 15px rgba(255,255,255,0.3)`,
-                  `0 0 10px rgba(255,255,255,0.1)`
-                ]
-              }}
-              transition={{ duration: 2, repeat: Infinity, delay: idx * 0.2 }}
-              className="font-serif text-2xl text-white mt-1.5"
-            >
-              {stat.value}
-            </motion.div>
-            <div className="text-[8px] text-white/30 uppercase tracking-[0.2em] font-black mt-1">
-              {stat.label}
-            </div>
-          </motion.div>
-        ))}
+      {/* Weekly Activity Chart */}
+      <div className="glass-card p-4 sm:p-6 bg-gradient-to-tr from-white/5 to-transparent">
+        <div className="flex justify-between items-center mb-5">
+          <h3 className="font-serif text-xl text-white">Aktivitas Minggu Ini</h3>
+          <BarChart3 size={16} className="text-emerald-400" />
+        </div>
+        <div className="bg-black/30 rounded-2xl p-4 border border-white/5 h-40 flex items-end justify-between gap-2 overflow-hidden relative">
+          {/* Chart Bars */}
+          {weeklyActivity.map((day, idx) => {
+            const heightPct = Math.max(5, (day.slides / maxSlides) * 100);
+            return (
+              <div key={day.day} className="flex flex-col items-center gap-2 flex-1 group">
+                <div className="w-full relative flex justify-center items-end h-24">
+                  <motion.div 
+                    initial={{ height: 0 }}
+                    animate={{ height: `${heightPct}%` }}
+                    transition={{ duration: 1, delay: idx * 0.1 }}
+                    className="w-full max-w-[24px] bg-gradient-to-t from-white/10 to-emerald-400/80 rounded-t-lg relative group-hover:to-emerald-400 transition-colors cursor-pointer"
+                  >
+                    {/* Tooltip on hover */}
+                    <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-black/80 px-2 py-1 rounded text-[10px] font-bold text-white whitespace-nowrap transition-opacity pointer-events-none border border-white/10">
+                      {day.slides} slide
+                    </div>
+                  </motion.div>
+                </div>
+                <div className="text-[10px] text-white/40 font-bold uppercase tracking-wider group-hover:text-white/80 transition-colors">
+                  {day.day}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Quick Next Task */}
-      <div className="glass-card p-6 bg-gradient-to-tr from-white/5 to-transparent">
-        <div className="flex justify-between items-center mb-5">
-          <h3 className="font-serif text-xl text-white">Ujian Mendatang</h3>
-          <div className="text-[9px] bg-red-500/20 text-red-300 px-2.5 py-1 rounded-lg border border-red-500/20 font-black tracking-wider uppercase">7 Hari Lagi</div>
-        </div>
-        <div className="bg-black/30 rounded-2xl p-5 border border-white/5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gold/5 blur-3xl -mr-10 -mt-10" />
-          <p className="text-white/90 font-bold text-base relative z-10">UAS Anatomi & Fisiologi</p>
-          <div className="w-full bg-white/5 h-2 rounded-full mt-4 overflow-hidden relative z-10 border border-white/5">
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: '35%' }}
-              className="bg-gradient-to-r from-gold-deep to-gold h-full rounded-full shadow-[0_0_10px_rgba(245,200,66,0.3)]" 
-            />
+      {/* Block Effectiveness Leaderboard */}
+      <div className="glass-card p-4 sm:p-6 bg-gradient-to-tr from-white/5 to-transparent">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-4">
+          <div className="flex items-center gap-2">
+            <h3 className="font-serif text-xl text-white">Leaderboard Blok</h3>
+            <Trophy size={16} className="text-gold" />
           </div>
-          <p className="text-white/30 text-[10px] mt-3 font-bold uppercase tracking-wider relative z-10">14 dari 40 slide selesai</p>
+          
+          <div className="flex bg-black/40 rounded-xl p-1 border border-white/5 items-center max-w-[240px] w-full">
+            <button
+              onClick={() => setLeaderboardTab('score')}
+              className={`flex-1 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${leaderboardTab === 'score' ? 'bg-white/10 text-gold shadow-md' : 'text-white/40 hover:text-white/70'}`}
+            >
+              <Star size={12} /> Nilai
+            </button>
+            <button
+              onClick={() => setLeaderboardTab('recent')}
+              className={`flex-1 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${leaderboardTab === 'recent' ? 'bg-white/10 text-emerald-400 shadow-md' : 'text-white/40 hover:text-white/70'}`}
+            >
+              <Clock size={12} /> Terbaru
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-col gap-3">
+          <AnimatePresence mode="popLayout">
+            {displayBlocks.map((block, idx) => (
+              <motion.div 
+                key={block.id}
+                layout
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.3 }}
+                className="bg-black/30 rounded-2xl p-4 border border-white/5 relative overflow-hidden flex items-center gap-4 group hover:bg-white/5 transition-colors"
+              >
+                {/* Rank/Recent Badge */}
+                <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold text-sm border ${
+                  leaderboardTab === 'score' && idx === 0 ? 'bg-gold/20 border-gold/40 text-gold shadow-[0_0_15px_rgba(245,200,66,0.2)]' :
+                  leaderboardTab === 'score' && idx === 1 ? 'bg-slate-300/20 border-slate-300/40 text-slate-200' :
+                  leaderboardTab === 'score' && idx === 2 ? 'bg-amber-700/20 border-amber-700/40 text-amber-500' :
+                  'bg-white/5 border-white/10 text-white/50'
+                }`}>
+                  {leaderboardTab === 'score' ? idx + 1 : '-'}
+                </div>
+
+                {/* Block Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start gap-2">
+                    <p className="text-white/90 font-bold text-sm tracking-wide truncate">{block.name}</p>
+                    {leaderboardTab === 'recent' && (
+                      <span className="text-[8px] text-emerald-400 uppercase tracking-widest font-bold whitespace-nowrap bg-emerald-400/10 px-1.5 py-0.5 rounded border border-emerald-400/20 shrink-0 mt-0.5">
+                        {block.lastActive}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <div className="flex-1 bg-white/5 h-1.5 rounded-full overflow-hidden border border-white/5">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${block.efficiency}%` }}
+                        transition={{ duration: 1, delay: 0.2 }}
+                        className={`h-full rounded-full ${
+                          block.efficiency >= 90 ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' :
+                          block.efficiency >= 70 ? 'bg-gradient-to-r from-orange-500 to-orange-400' :
+                          'bg-gradient-to-r from-rose-500 to-rose-400'
+                        }`}
+                      />
+                    </div>
+                    <span className="text-[9px] font-bold text-white/50 whitespace-nowrap shrink-0">
+                      {block.slides}/{block.total} Selesai
+                    </span>
+                  </div>
+                </div>
+
+                {/* Score */}
+                <div className="flex flex-col items-end justify-center w-10 shrink-0">
+                  <span className={`text-xl font-black font-serif leading-none ${
+                    block.score >= 90 ? 'text-gold drop-shadow-[0_0_8px_rgba(245,200,66,0.3)]' :
+                    block.score >= 70 ? 'text-zinc-200' :
+                    'text-rose-400'
+                  }`}>
+                    {block.score}
+                  </span>
+                  <span className="text-[7px] uppercase tracking-widest font-black text-white/30 truncate w-full text-right mt-1">Nilai</span>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       </div>
     </div>
   );
 };
+
