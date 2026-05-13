@@ -19,6 +19,7 @@ interface AppState {
   isLoading: boolean;
   isInitializing: boolean;
   isFirstTimeSetup: boolean;
+  isSpecialVerified: boolean;
   needsExamScore: boolean;
   
   // Actions
@@ -33,6 +34,7 @@ interface AppState {
   togglePptDot: (index: number) => Promise<void>;
   setDotTitle: (index: number, title: string) => Promise<void>;
   fetchActiveBlock: (userId: string) => Promise<void>;
+  setSpecialVerified: (verified: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -53,6 +55,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   lang: 'id',
   isLoading: false,
   isInitializing: true,
+  isSpecialVerified: false,
 
   setupNewBlock: async (name: string, target: number, start: string, end: string) => {
     const profile = get().profile;
@@ -320,5 +323,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         name: updates.username || state.name
       }));
     }
-  }
+  },
+
+  setSpecialVerified: (verified: boolean) => set({ isSpecialVerified: verified })
 }));

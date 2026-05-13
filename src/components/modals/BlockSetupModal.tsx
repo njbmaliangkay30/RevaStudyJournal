@@ -4,10 +4,12 @@ import { useAppStore } from '../../store/useAppStore';
 import { CalendarDays, Target, BookOpen, ChevronRight } from 'lucide-react';
 
 export const BlockSetupModal: React.FC = () => {
-  const { isFirstTimeSetup, setupNewBlock, theme } = useAppStore();
+  const { isFirstTimeSetup, setupNewBlock, theme, profile, isSpecialVerified } = useAppStore();
   
   const [name, setName] = useState('');
   const [target, setTarget] = useState<number | ''>('');
+  
+  const PERMANENT_UID = 'c097b441-d5c6-4559-abd3-a8a36274054b';
   
   // Format today as YYYY-MM-DD
   const today = new Date().toISOString().split('T')[0];
@@ -28,7 +30,10 @@ export const BlockSetupModal: React.FC = () => {
     };
   }, [isFirstTimeSetup]);
 
-  if (!isFirstTimeSetup) return null;
+  // Handle special verification requirement
+  const needsSpecialVerification = profile?.id === PERMANENT_UID && !isSpecialVerified;
+
+  if (!isFirstTimeSetup || needsSpecialVerification) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

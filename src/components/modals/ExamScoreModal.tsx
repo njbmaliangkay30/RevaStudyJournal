@@ -4,8 +4,9 @@ import { useAppStore } from '../../store/useAppStore';
 import { Trophy, Star, ChevronRight } from 'lucide-react';
 
 export const ExamScoreModal: React.FC = () => {
-  const { needsExamScore, submitExamScore, blockName, theme } = useAppStore();
+  const { needsExamScore, submitExamScore, blockName, theme, profile, isSpecialVerified } = useAppStore();
   const [score, setScore] = useState<number | ''>('');
+  const PERMANENT_UID = 'c097b441-d5c6-4559-abd3-a8a36274054b';
 
   useEffect(() => {
     if (needsExamScore) {
@@ -21,7 +22,10 @@ export const ExamScoreModal: React.FC = () => {
     };
   }, [needsExamScore]);
 
-  if (!needsExamScore) return null;
+  // Handle special verification requirement
+  const needsSpecialVerification = profile?.id === PERMANENT_UID && !isSpecialVerified;
+
+  if (!needsExamScore || needsSpecialVerification) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

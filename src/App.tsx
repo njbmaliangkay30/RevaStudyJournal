@@ -11,6 +11,7 @@ import { PPTTracker } from './components/features/PPTTracker';
 import { PomodoroTimer } from './components/features/PomodoroTimer';
 import { Flashcards } from './components/features/Flashcards';
 import { MemoryGame } from './components/features/MemoryGame';
+import { SecretLoginModal } from './components/modals/SecretLoginModal';
 import { BlockSetupModal } from './components/modals/BlockSetupModal';
 import { ExamScoreModal } from './components/modals/ExamScoreModal';
 import { Fairylights } from './components/ui/Fairylights';
@@ -167,6 +168,7 @@ export default function App() {
           ? "opacity-0 blur-2xl scale-105 pointer-events-none" 
           : "opacity-100 blur-0 scale-100"
       )}>
+        <SecretLoginModal />
         <BlockSetupModal />
         <ExamScoreModal />
         
