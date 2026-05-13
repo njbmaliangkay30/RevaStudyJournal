@@ -23,10 +23,10 @@ export const ExamScoreModal: React.FC = () => {
 
   if (!needsExamScore) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (score === '' || Number(score) < 0 || Number(score) > 100) return;
-    submitExamScore(Number(score));
+    await submitExamScore(Number(score));
   };
 
   return (

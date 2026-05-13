@@ -20,7 +20,24 @@ import { useAppStore } from './store/useAppStore';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const { theme, setTheme, checkExamDay, isFirstTimeSetup, needsExamScore } = useAppStore();
+  const { theme, setTheme, checkExamDay, isFirstTimeSetup, needsExamScore, fetchProfile } = useAppStore();
+
+  useEffect(() => {
+    // Basic session handling for development
+    const initAuth = async () => {
+      try {
+        let userId = localStorage.getItem('pixie_uid');
+        if (!userId) {
+          userId = crypto.randomUUID();
+          localStorage.setItem('pixie_uid', userId);
+        }
+        await fetchProfile(userId);
+      } catch (err) {
+        console.error('Failed to init profile:', err);
+      }
+    };
+    initAuth();
+  }, [fetchProfile]);
 
   useEffect(() => {
     checkExamDay();

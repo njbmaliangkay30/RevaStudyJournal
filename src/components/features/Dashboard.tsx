@@ -1,11 +1,60 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Trophy, BarChart3, CheckCircle2, Clock, Star, Target, Zap } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { supabase } from '../../lib/supabase';
 
 export const Dashboard: React.FC = () => {
     const { profile, target, pptDots, blockStart, blockEnd, lang } = useAppStore();
     const [leaderboardTab, setLeaderboardTab] = useState<'score' | 'recent'>('score');
+    const [pastBlocks, setPastBlocks] = useState<any[]>([]);
+    const [weeklyActivity, setWeeklyActivity] = useState<{day: string, slides: number}[]>([]);
+
+    useEffect(() => {
+      if (!profile) return;
+
+      const fetchData = async () => {
+        // Fetch past blocks
+        const { data: blocks } = await supabase
+          .from('study_blocks')
+          .select('*')
+          .eq('user_id', profile.id)
+          .eq('is_active', false)
+          .order('created_at', { ascending: false });
+        
+        if (blocks) {
+          const formattedBlocks = blocks.map(b => ({
+            id: b.id,
+            name: b.name,
+            slides: b.target_slides, // Past blocks are considered completed
+            total: b.target_slides,
+            score: b.exam_score || 0,
+            lastActiveMs: new Date(b.created_at).getTime(),
+            lastActive: new Date(b.created_at).toLocaleDateString(),
+            efficiency: 100 
+          }));
+          setPastBlocks(formattedBlocks);
+        }
+
+        // Calculate weekly activity (simplified for now - checking ppt_dots completed_at)
+        const days = lang === 'id' ? ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const activity = Array.from({ length: 7 }, (_, i) => {
+          const d = new Date();
+          d.setDate(d.getDate() - (6 - i));
+          const dayName = days[d.getDay()];
+          
+          // Count completed dots for this day
+          const dateStr = d.toISOString().split('T')[0];
+          const count = pptDots.filter(dot => dot.done && dot.completed_at && dot.completed_at.startsWith(dateStr)).length;
+          
+          return { day: dayName, slides: count };
+        });
+        setWeeklyActivity(activity);
+      };
+
+      fetchData();
+    }, [profile, pptDots, lang]);
+
     const doneCount = pptDots ? pptDots.filter(d => d.done).length : 0;
     const safeTarget = typeof target === 'number' ? target : 0;
     const remaining = Math.max(0, safeTarget - doneCount);
@@ -23,38 +72,27 @@ export const Dashboard: React.FC = () => {
       blockLabel = useAppStore.getState().blockName || "Target Belajar";
     }
 
-    const blockLeaderboard = [
-      { id: 'b1', name: 'Blok 1: Kardiovaskuler', slides: 145, total: 150, efficiency: 96, score: 92, lastActive: '2 jam yang lalu', lastActiveMs: Date.now() - 2 * 3600000 },
-      { id: 'b2', name: 'Blok 2: Respirasi', slides: 89, total: 100, efficiency: 89, score: 85, lastActive: '1 hari yang lalu', lastActiveMs: Date.now() - 24 * 3600000 },
-      { id: 'b3', name: 'Blok 3: Gastrointestinal', slides: 60, total: 120, efficiency: 50, score: 65, lastActive: '3 hari yang lalu', lastActiveMs: Date.now() - 3 * 24 * 3600000 },
-      { id: 'b4', name: 'Blok 4: Saraf', slides: 120, total: 120, efficiency: 100, score: 95, lastActive: 'Baru saja', lastActiveMs: Date.now() - 5 * 60000 },
-    ];
-
     const displayBlocks = leaderboardTab === 'score' 
-      ? [...blockLeaderboard].sort((a, b) => b.score - a.score)
-      : [...blockLeaderboard].sort((a, b) => b.lastActiveMs - a.lastActiveMs);
+      ? [...pastBlocks].sort((a, b) => b.score - a.score)
+      : [...pastBlocks].sort((a, b) => b.lastActiveMs - a.lastActiveMs);
 
-    const weeklyActivity = [
-      { day: 'Sen', slides: 10 },
-      { day: 'Sel', slides: 25 },
-      { day: 'Rab', slides: 5 },
-      { day: 'Kam', slides: 40 },
-      { day: 'Jum', slides: 15 },
-      { day: 'Sab', slides: 35 },
-      { day: 'Min', slides: 20 },
-    ];
-    const maxSlides = Math.max(...weeklyActivity.map(d => d.slides));
+    const maxSlides = Math.max(1, ...weeklyActivity.map(d => d.slides));
 
     // Get recent completed slides from pptDots (ones that have a title and are done)
     const recentReadings = pptDots && pptDots.length > 0 
       ? pptDots
           .filter(dot => dot.done && dot.title)
-          .map((dot, index) => ({
-            id: dot.id,
-            title: dot.title,
-            slides: 1, // Each dot represents 1 slide here
-            time: 'Baru saja' // Without a timestamp in dot, we just use a placeholder
-          }))
+          .map((dot) => {
+            const timeStr = dot.completed_at 
+              ? new Date(dot.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : 'Baru saja';
+            return {
+              id: dot.id,
+              title: dot.title,
+              slides: 1,
+              time: timeStr
+            };
+          })
           .slice(-3)
           .reverse()
       : [

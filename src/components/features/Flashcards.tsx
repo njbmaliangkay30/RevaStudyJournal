@@ -2,167 +2,651 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 import { Flashcard as FlashcardType } from '../../types';
-import { Plus, Trash2, RotateCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, RotateCw, CheckCircle2, AlertCircle, HelpCircle, Sparkles } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
+import { cn } from '../../lib/utils';
 
 export const Flashcards: React.FC = () => {
   const [cards, setCards] = useState<FlashcardType[]>([]);
   const [isAdding, setIsAdding] = useState(false);
-  const [newCard, setNewCard] = useState({ question: '', answer: '' });
-  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [isBulk, setIsBulk] = useState(false);
+  const [newCard, setNewCard] = useState({ question: '', answer: '', deck: '' });
+  const [bulkText, setBulkText] = useState('');
+  const [selectedDeck, setSelectedDeck] = useState<string>('Semua');
+  const [isLoading, setIsLoading] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
-  const { profile, addCoins } = useAppStore();
+  const [isPracticing, setIsPracticing] = useState(false);
+  const [practiceIndex, setPracticeIndex] = useState(0);
+  const [isDeletingScope, setIsDeletingScope] = useState<string | null>(null);
+  const { profile, addCoins, theme } = useAppStore();
+
+  const decks = Array.from(new Set(cards.map(c => c.deck || 'Umum'))).sort();
+  const filteredCards = selectedDeck === 'Semua' 
+    ? cards 
+    : cards.filter(c => (c.deck || 'Umum') === selectedDeck);
 
   useEffect(() => {
     if (profile) fetchCards();
   }, [profile]);
 
+  // Load from local storage if DB is not available or as initial cache
+  useEffect(() => {
+    const localCards = localStorage.getItem('pixie_cards');
+    if (localCards) {
+      try {
+        setCards(JSON.parse(localCards));
+      } catch (e) {
+        console.error('Failed to parse local cards');
+      }
+    }
+  }, []);
+
+  // Save to local storage whenever cards change
+  useEffect(() => {
+    localStorage.setItem('pixie_cards', JSON.stringify(cards));
+  }, [cards]);
+
   const fetchCards = async () => {
-    const { data } = await supabase
-      .from('flashcards')
-      .select('*')
-      .eq('user_id', profile?.id)
-      .order('created_at', { ascending: false });
-    if (data) setCards(data);
+    if (!profile?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('flashcards')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.warn('FetchCards: DB error', error);
+        return;
+      }
+      
+      if (data) {
+        setCards(data);
+      }
+    } catch (err) {
+      console.error('FetchCards: Unexpected error', err);
+    }
+  };
+
+  const startPractice = () => {
+    if (filteredCards.length === 0) return;
+    setIsPracticing(true);
+    setPracticeIndex(0);
+    setIsFlipped(false);
+  };
+
+  const nextCard = () => {
+    setIsFlipped(false);
+    setTimeout(() => {
+      setPracticeIndex((prev) => (prev + 1) % filteredCards.length);
+    }, 200);
   };
 
   const handleAddCard = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCard.question || !newCard.answer) return;
+    
+    const currentQuestion = newCard.question;
+    const currentAnswer = newCard.answer;
+    const currentDeck = newCard.deck || 'Umum';
 
-    const { data, error } = await supabase
-      .from('flashcards')
-      .insert([{
-        user_id: profile?.id,
-        question: newCard.question,
-        answer: newCard.answer,
-      }])
-      .select()
-      .single();
+    setIsLoading(true);
+    
+    // Create local temporary card for immediate feedback
+    const tempId = crypto.randomUUID();
+    const tempCard: FlashcardType = {
+      id: tempId,
+      user_id: profile?.id || 'guest',
+      question: currentQuestion,
+      answer: currentAnswer,
+      deck: currentDeck,
+      is_difficult: false,
+      created_at: new Date().toISOString()
+    };
 
-    if (data && !error) {
-      setCards([data, ...cards]);
-      setNewCard({ question: '', answer: '' });
+    try {
+      if (profile?.id) {
+        const { data, error } = await supabase
+          .from('flashcards')
+          .insert([{
+            user_id: profile.id,
+            question: currentQuestion,
+            answer: currentAnswer,
+            deck: currentDeck,
+            is_difficult: false
+          }])
+          .select()
+          .single();
+
+        if (error) {
+          console.error('DB Insert Error:', error);
+          setCards(prev => [tempCard, ...prev]);
+        } else if (data) {
+          setCards(prev => [data, ...prev.filter(c => c.id !== tempId)]);
+        } else {
+          setCards(prev => [tempCard, ...prev]);
+        }
+      } else {
+        setCards(prev => [tempCard, ...prev]);
+      }
+      
+      setNewCard({ question: '', answer: '', deck: currentDeck });
       setIsAdding(false);
-      addCoins(2); // Small reward for creation
+      addCoins(2);
+    } catch (err: any) {
+      console.error('Unexpected error:', err);
+      setCards(prev => [tempCard, ...prev]);
+      setNewCard({ question: '', answer: '', deck: currentDeck });
+      setIsAdding(false);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const deleteCard = async (id: string) => {
-    const { error } = await supabase.from('flashcards').delete().eq('id', id);
-    if (!error) setCards(cards.filter(c => c.id !== id));
+  const handleBulkAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bulkText.trim()) return;
+
+    const currentDeck = newCard.deck || 'Umum';
+    setIsLoading(true);
+    try {
+      const lines = bulkText.split('\n').filter(line => line.includes('|'));
+      if (lines.length === 0) {
+        alert("Format tidak valid. Gunakan format: Pertanyaan | Jawaban");
+        setIsLoading(false);
+        return;
+      }
+
+      const newCards = lines.map(line => {
+        const [question, answer] = line.split('|').map(s => s.trim());
+        return {
+          id: crypto.randomUUID(),
+          user_id: profile?.id || 'guest',
+          question,
+          answer,
+          deck: currentDeck,
+          is_difficult: false,
+          created_at: new Date().toISOString()
+        };
+      });
+
+      if (profile?.id) {
+        const { data, error } = await supabase
+          .from('flashcards')
+          .insert(newCards.map(({ id, ...c }) => ({ ...c, user_id: profile.id })))
+          .select();
+        
+        if (data && !error) {
+          setCards(prev => [...data, ...prev]);
+        } else {
+          setCards(prev => [...newCards, ...prev]);
+          if (error) console.error('Bulk Insert Error:', error);
+        }
+      } else {
+        setCards(prev => [...newCards, ...prev]);
+      }
+
+      setBulkText('');
+      setNewCard(prev => ({ ...prev, deck: currentDeck }));
+      setIsAdding(false);
+      addCoins(newCards.length * 2);
+    } catch (err: any) {
+      console.error('Bulk Add Error:', err);
+      alert("Terjadi kesalahan saat memproses bulk mode.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const currentCard = cards.find(c => c.id === currentId) || cards[0];
+  const aiPrompt = `Halo Gemini! Tolong buatkan daftar Flashcard untuk materi ini. 
+Format output harus tepat seperti ini (jangan ada teks lain):
+Pertanyaan 1 | Jawaban 1
+Pertanyaan 2 | Jawaban 2
+
+Gunakan materi dari file/teks berikut: [LAMPIRKAN_FILE_ATAU_TEKS_DISINI]`;
+
+  const deleteCard = async (id: string) => {
+    if (!profile?.id) {
+      setCards(prev => prev.filter(c => c.id !== id));
+      return;
+    }
+    const { error } = await supabase.from('flashcards').delete().eq('id', id);
+    if (!error) setCards(prev => prev.filter(c => c.id !== id));
+    else console.error('Delete failed:', error);
+  };
+
+  const handleDeleteDeck = async () => {
+    if (!isDeletingScope) return;
+    const isDeletingAll = isDeletingScope === 'Semua';
+
+    setIsLoading(true);
+    try {
+      if (!profile?.id) {
+        // Guest Mode
+        if (isDeletingAll) {
+          setCards([]);
+        } else {
+          setCards(prev => prev.filter(c => (c.deck || 'Umum') !== isDeletingScope));
+        }
+        setSelectedDeck('Semua');
+        setIsDeletingScope(null);
+        return;
+      }
+
+      // DB Mode
+      const cardsInScope = isDeletingAll ? cards : cards.filter(c => (c.deck || 'Umum') === isDeletingScope);
+      const idsToDelete = cardsInScope.map(c => c.id);
+
+      if (idsToDelete.length > 0) {
+        // Log for debugging
+        console.log(`Deleting ${idsToDelete.length} cards from ${isDeletingScope}`);
+        
+        const { error } = await supabase
+          .from('flashcards')
+          .delete()
+          .in('id', idsToDelete)
+          .eq('user_id', profile.id);
+
+        if (error) throw error;
+      }
+
+      // Update local state
+      if (isDeletingAll) {
+        setCards([]);
+      } else {
+        setCards(prev => prev.filter(c => (c.deck || 'Umum') !== isDeletingScope));
+      }
+      
+      setSelectedDeck('Semua');
+      setIsDeletingScope(null);
+      
+    } catch (error: any) {
+      console.error('Delete Action Error:', error);
+      alert(`Gagal menghapus: ${error.message || 'Masalah koneksi database'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="font-serif text-2xl text-white">Kartu Ajaib</h2>
-        <button 
-          onClick={() => setIsAdding(!isAdding)}
-          className="bg-gold/20 hover:bg-gold/40 p-2 rounded-full text-gold transition-colors"
-        >
-          <Plus size={20} />
-        </button>
+      <div className="flex flex-col gap-4">
+        <div className="flex justify-between items-center">
+          <h2 className="font-serif text-2xl text-white">Kartu Ajaib</h2>
+          <div className="flex gap-2">
+            {filteredCards.length > 0 && !isAdding && !isPracticing && (
+              <button 
+                onClick={startPractice}
+                disabled={isLoading}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl border transition-all font-bold text-[10px] uppercase tracking-widest disabled:opacity-50",
+                  theme === 'moon' ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/30" :
+                  theme === 'sakura' ? "bg-rose-500/20 border-rose-500/30 text-rose-300 hover:bg-rose-500/30" :
+                  "bg-emerald-500/20 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/30"
+                )}
+              >
+                <RotateCw size={14} className={cn(isLoading && "animate-spin")} /> 
+                {isLoading ? 'Memproses...' : `Latih ${selectedDeck}`}
+              </button>
+            )}
+            {!isAdding && !isPracticing && filteredCards.length > 0 && (
+              <button 
+                onClick={() => setIsDeletingScope(selectedDeck)}
+                disabled={isLoading}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-xl border transition-all font-bold text-[10px] uppercase tracking-widest disabled:opacity-50",
+                  selectedDeck === 'Semua' 
+                    ? "bg-white/5 border-white/10 text-white/30 hover:bg-rose-500/10 hover:text-rose-400 hover:border-rose-500/20"
+                    : "bg-rose-500/10 hover:bg-rose-500/30 text-rose-400 border-rose-500/20"
+                )}
+              >
+                <Trash2 size={14} /> {selectedDeck === 'Semua' ? 'Hapus Semua' : 'Hapus Folder'}
+              </button>
+            )}
+            <button 
+              onClick={() => setIsAdding(!isAdding)}
+              className="bg-gold/20 hover:bg-gold/40 p-2 rounded-full text-gold transition-colors"
+            >
+              <Plus size={20} />
+            </button>
+          </div>
+        </div>
+
+        {!isPracticing && !isAdding && (
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+            <button 
+              onClick={() => setSelectedDeck('Semua')}
+              className={cn(
+                "px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest whitespace-nowrap border transition-all",
+                selectedDeck === 'Semua' 
+                  ? "bg-gold border-gold text-green-deep" 
+                  : "bg-white/5 border-white/10 text-white/40 hover:text-white"
+              )}
+            >
+              Semua
+            </button>
+            {decks.map(deck => (
+              <button 
+                key={deck}
+                onClick={() => setSelectedDeck(deck)}
+                className={cn(
+                  "px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest whitespace-nowrap border transition-all",
+                  selectedDeck === deck 
+                    ? "bg-gold border-gold text-green-deep" 
+                    : "bg-white/5 border-white/10 text-white/40 hover:text-white"
+                )}
+              >
+                {deck}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <AnimatePresence>
-        {isAdding && (
+        {isDeletingScope && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-card max-w-sm w-full p-6 text-center space-y-4"
+            >
+              <div className="w-16 h-16 bg-rose-500/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                <Trash2 size={32} />
+              </div>
+              <h3 className="text-xl font-serif text-white">
+                {isDeletingScope === 'Semua' ? 'Hapus Semua Kartu?' : `Hapus Folder "${isDeletingScope}"?`}
+              </h3>
+              <p className="text-sm text-white/60">
+                Tindakan ini akan menghapus permanen kartu-kartu Anda. Anda tidak dapat mengembalikannya.
+              </p>
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => setIsDeletingScope(null)}
+                  className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-white font-bold text-xs uppercase"
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={handleDeleteDeck}
+                  disabled={isLoading}
+                  className="flex-1 px-4 py-3 rounded-xl bg-rose-600 text-white font-bold text-xs uppercase shadow-lg shadow-rose-600/20 disabled:opacity-50"
+                >
+                  {isLoading ? 'Memproses...' : 'Ya, Hapus'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence mode="wait">
+        {isPracticing ? (
+          <motion.div 
+            key="practice"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-6"
+          >
+            <div className="flex justify-between items-center">
+              <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest">
+                Latihan: {selectedDeck} ({practiceIndex + 1} / {filteredCards.length})
+              </span>
+              <button 
+                onClick={() => setIsPracticing(false)}
+                className="text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest"
+              >
+                Selesai
+              </button>
+            </div>
+
+            <div 
+              className="relative h-96 w-full cursor-pointer group perspective-1000"
+              onClick={() => setIsFlipped(!isFlipped)}
+            >
+              <motion.div 
+                className="w-full h-full relative transition-all duration-500 preserve-3d"
+                initial={false}
+                animate={{ rotateY: isFlipped ? 180 : 0 }}
+                style={{ transformStyle: 'preserve-3d' }}
+              >
+                {/* Front (Question) */}
+                <div 
+                  className={cn(
+                    "absolute inset-0 backface-hidden rounded-3xl p-8 flex flex-col items-center justify-center text-center backdrop-blur-xl border-2 transition-all duration-500",
+                    theme === 'moon' ? "bg-slate-900/60 border-indigo-500/30 shadow-[0_0_40px_rgba(79,70,229,0.15)]" :
+                    theme === 'sakura' ? "bg-rose-950/60 border-rose-500/30 shadow-[0_0_40px_rgba(225,29,72,0.15)]" :
+                    "bg-emerald-950/60 border-emerald-500/30 shadow-[0_0_40px_rgba(16,185,129,0.15)]"
+                  )}
+                  style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
+                >
+                  <div className="absolute top-4 right-4 opacity-10">
+                    <HelpCircle size={60} className={cn(
+                      theme === 'moon' ? "text-indigo-400" :
+                      theme === 'sakura' ? "text-rose-400" :
+                      "text-emerald-400"
+                    )} />
+                  </div>
+                  
+                  <div className={cn(
+                    "text-[10px] uppercase tracking-[0.4em] font-black mb-6 px-4 py-1 rounded-full border",
+                    theme === 'moon' ? "text-indigo-300 border-indigo-500/20 bg-indigo-500/5" :
+                    theme === 'sakura' ? "text-rose-300 border-rose-500/20 bg-rose-500/5" :
+                    "text-emerald-300 border-emerald-500/20 bg-emerald-500/5"
+                  )}>
+                    Pertanyaan
+                  </div>
+
+                  <p className="text-2xl text-white leading-relaxed font-serif px-4 relative z-10">
+                    {filteredCards[practiceIndex].question}
+                  </p>
+
+                  <div className="mt-12 flex flex-col items-center gap-3">
+                    <div className={cn(
+                      "w-12 h-1 rounded-full",
+                      theme === 'moon' ? "bg-indigo-500/20" :
+                      theme === 'sakura' ? "bg-rose-500/20" :
+                      "bg-emerald-500/20"
+                    )} />
+                    <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest animate-pulse">Klik untuk membalik</p>
+                  </div>
+                </div>
+
+                {/* Back (Answer) */}
+                <div 
+                  className="absolute inset-0 backface-hidden rounded-3xl p-8 flex flex-col items-center justify-center text-center bg-gold/15 border-2 border-gold/40 backdrop-blur-2xl shadow-[0_0_50px_rgba(245,200,66,0.2)]"
+                  style={{ 
+                    transform: 'rotateY(180deg)', 
+                    backfaceVisibility: 'hidden', 
+                    WebkitBackfaceVisibility: 'hidden' 
+                  }}
+                >
+                  <div className="absolute top-4 left-4 text-gold/30"><Sparkles size={24} /></div>
+                  <div className="absolute bottom-4 right-4 text-gold/30"><Sparkles size={24} /></div>
+                  
+                  <div className="text-[10px] text-gold uppercase tracking-[0.3em] font-bold mb-6">Jawaban</div>
+                  <p className="text-xl text-white leading-relaxed font-medium italic px-4">
+                    {filteredCards[practiceIndex].answer}
+                  </p>
+                  
+                  <div className="mt-10 px-4 py-1.5 bg-gold/20 rounded-full border border-gold/30">
+                    <p className="text-[9px] text-gold font-bold uppercase tracking-widest flex items-center gap-2">
+                      <CheckCircle2 size={12} /> Pengetahuan Terbuka
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+
+            <div className="flex gap-4">
+              <button 
+                onClick={nextCard}
+                className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-4 rounded-2xl transition-all text-sm"
+              >
+                Sudah Ingat ✨
+              </button>
+              <button 
+                onClick={nextCard}
+                className="flex-1 bg-gold text-green-deep font-bold py-4 rounded-2xl shadow-[0_0_30px_rgba(245,200,66,0.3)] hover:scale-[1.02] active:scale-95 transition-all text-sm"
+              >
+                Berikutnya
+              </button>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div key="main-view" className="space-y-6">
+            <AnimatePresence>
+              {isAdding && (
           <motion.div 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <form onSubmit={handleAddCard} className="glass-card p-6 space-y-4 mb-6">
-              <input 
-                placeholder="Pertanyaan (contoh: Mitokondria adalah?)"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:border-gold outline-none transition-all"
-                value={newCard.question}
-                onChange={e => setNewCard({...newCard, question: e.target.value})}
-              />
-              <textarea 
-                placeholder="Jawaban (contoh: Pembangkit energi sel)"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:border-gold outline-none transition-all h-24"
-                value={newCard.answer}
-                onChange={e => setNewCard({...newCard, answer: e.target.value})}
-              />
-              <button className="w-full bg-gold text-green-deep font-bold py-3 rounded-xl shadow-[0_0_20px_rgba(245,200,66,0.3)]">
-                Simpan Kartu Baru
-              </button>
-            </form>
+            <div className={`glass-card p-6 mb-6 shadow-2xl border border-white/10 ${
+              theme === 'moon' ? 'bg-slate-900/40' :
+              theme === 'sakura' ? 'bg-rose-950/40' :
+              'bg-emerald-950/40'
+            }`}>
+              <div className="flex gap-2 mb-6 p-1 bg-black/20 rounded-xl">
+                <button 
+                  onClick={() => setIsBulk(false)}
+                  className={cn(
+                    "flex-1 py-2 text-[10px] uppercase tracking-widest font-bold rounded-lg transition-all",
+                    !isBulk ? "bg-gold text-black shadow-lg" : "text-white/40 hover:text-white"
+                  )}
+                >
+                  Manual
+                </button>
+                <button 
+                  onClick={() => setIsBulk(true)}
+                  className={cn(
+                    "flex-1 py-2 text-[10px] uppercase tracking-widest font-bold rounded-lg transition-all",
+                    isBulk ? "bg-gold text-black shadow-lg" : "text-white/40 hover:text-white"
+                  )}
+                >
+                  Bulk Mode (AI Hub)
+                </button>
+              </div>
+
+                    {!isBulk ? (
+                      <form onSubmit={handleAddCard} className="space-y-4">
+                        <input 
+                          placeholder="Nama Folder/PPT (contoh: Biologi Sel)"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:border-gold outline-none transition-all"
+                          value={newCard.deck}
+                          onChange={e => setNewCard({...newCard, deck: e.target.value})}
+                        />
+                        <input 
+                          placeholder="Pertanyaan (contoh: Mitokondria adalah?)"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:border-gold outline-none transition-all"
+                          value={newCard.question}
+                          onChange={e => setNewCard({...newCard, question: e.target.value})}
+                        />
+                        <textarea 
+                          placeholder="Jawaban (contoh: Pembangkit energi sel)"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:border-gold outline-none transition-all h-24"
+                          value={newCard.answer}
+                          onChange={e => setNewCard({...newCard, answer: e.target.value})}
+                        />
+                        <button 
+                          disabled={isLoading || !newCard.question || !newCard.answer}
+                          className="w-full bg-gold text-green-deep font-bold py-3 rounded-xl shadow-[0_0_20px_rgba(245,200,66,0.3)] hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          {isLoading ? 'Menyimpan...' : 'Simpan Kartu Baru'}
+                        </button>
+                      </form>
+                    ) : (
+                      <form onSubmit={handleBulkAdd} className="space-y-4">
+                        <input 
+                          placeholder="Nama Folder/PPT (contoh: Biologi Sel)"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:border-gold outline-none transition-all"
+                          value={newCard.deck}
+                          onChange={e => setNewCard({...newCard, deck: e.target.value})}
+                        />
+                        <div className="bg-gold/5 border border-gold/10 rounded-2xl p-4 mb-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-gold/20 flex items-center justify-center text-gold shrink-0">
+                        <AlertCircle size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gold/80 uppercase tracking-wider mb-1">Tips AI Magic</p>
+                        <p className="text-[10px] text-white/50 leading-relaxed">
+                          Copy prompt ini ke Gemini/ChatGPT, lalu paste hasilnya di bawah.
+                        </p>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(aiPrompt);
+                            alert("Prompt berhasil dicopy!");
+                          }}
+                          className="mt-2 text-[10px] bg-gold/20 hover:bg-gold/30 text-gold px-3 py-1 rounded-md font-bold transition-all"
+                        >
+                          Copy AI Prompt ✨
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <textarea 
+                    placeholder="Pertanyaan 1 | Jawaban 1&#10;Pertanyaan 2 | Jawaban 2"
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:border-gold outline-none transition-all h-48 font-mono text-xs leading-relaxed"
+                    value={bulkText}
+                    onChange={e => setBulkText(e.target.value)}
+                  />
+                  <button 
+                    disabled={isLoading || !bulkText.trim()}
+                    className="w-full bg-gold text-green-deep font-bold py-3 rounded-xl shadow-[0_0_20px_rgba(245,200,66,0.3)] hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
+                  >
+                    {isLoading ? 'Sedang Memproses...' : 'Tambah Semua Kartu ✨'}
+                  </button>
+                </form>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {cards.length > 0 ? (
-        <div className="space-y-8">
-          {/* Card Viewer */}
-          <div 
-            className="perspective-1000 relative w-full h-64 cursor-pointer"
-            onClick={() => setIsFlipped(!isFlipped)}
-          >
-            <motion.div
-              animate={{ rotateY: isFlipped ? 180 : 0 }}
-              transition={{ type: 'spring', damping: 20 }}
-              className="w-full h-full preserve-3d"
-            >
-              {/* Front */}
-              <div className={cn(
-                "absolute inset-0 backface-hidden glass-card flex flex-col items-center justify-center p-8 text-center",
-                isFlipped && "pointer-events-none"
-              )}>
-                <div className="text-[10px] text-gold/50 uppercase tracking-widest font-bold mb-4">Pertanyaan</div>
-                <p className="text-xl text-white font-medium">{currentCard?.question}</p>
-                <div className="mt-8 text-white/20 flex flex-col items-center">
-                  <RotateCw size={16} className="animate-spin-slow mb-2" />
-                  <span className="text-[9px] uppercase tracking-widest">Ketuk untuk melihat keajaiban</span>
-                </div>
-              </div>
-
-              {/* Back */}
-              <div 
-                className={cn(
-                  "absolute inset-0 backface-hidden glass-card flex flex-col items-center justify-center p-8 text-center bg-gold/5",
-                  !isFlipped && "pointer-events-none"
-                )}
-                style={{ transform: 'rotateY(180deg)' }}
-              >
-                <div className="text-[10px] text-gold/50 uppercase tracking-widest font-bold mb-4">Jawaban</div>
-                <p className="text-lg text-white/90 italic leading-relaxed">{currentCard?.answer}</p>
-                <div className="mt-8 flex gap-4">
-                  <button onClick={(e) => { e.stopPropagation(); setIsFlipped(false); deleteCard(currentCard.id); }} className="text-white/20 hover:text-red-400 p-2"><Trash2 size={18} /></button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-
-          {/* List for management */}
-          <div className="space-y-3 pt-6">
-            <h3 className="text-[11px] text-white/30 uppercase tracking-[0.2em] font-bold px-2">Your Collection ({cards.length})</h3>
-            <div className="grid grid-cols-1 gap-3">
-              {cards.map((card) => (
-                <div key={card.id} className="glass-card p-4 flex justify-between items-center hover:bg-white/5 transition-colors">
-                  <div className="flex-1 pr-4 truncate">
-                    <p className="text-white/80 text-sm font-medium truncate">{card.question}</p>
-                    <p className="text-white/30 text-[10px] mt-0.5 truncate">{card.answer}</p>
+            <div className="grid gap-4">
+              {filteredCards.map((card) => (
+                <div 
+                  key={card.id} 
+                  className="glass-card p-4 group hover:bg-white/15 transition-all"
+                >
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[8px] bg-gold/20 text-gold px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">
+                          {card.deck || 'Umum'}
+                        </span>
+                      </div>
+                      <p className="text-white text-sm font-medium">{card.question}</p>
+                      <p className="text-white/40 text-xs mt-1 line-clamp-1 italic">{card.answer}</p>
+                    </div>
+                    <button 
+                      onClick={() => deleteCard(card.id)}
+                      className="text-white/10 hover:text-rose-400 p-2 rounded-lg hover:bg-rose-400/10 transition-all opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
-                  <button onClick={() => deleteCard(card.id)} className="text-white/20 hover:text-red-400 p-2"><Trash2 size={16} /></button>
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-      ) : (
-        <div className="py-12 flex flex-col items-center opacity-30 text-center">
-          <AlertCircle size={48} className="mb-4" />
-          <p>Belum ada kartu ajaib.</p>
-          <p className="text-xs">Mulai buat kartu pertama kamu!</p>
-        </div>
-      )}
+
+            {filteredCards.length === 0 && (
+              <div className="text-center py-12 text-white/20">
+                <AlertCircle size={40} className="mx-auto mb-4 opacity-10" />
+                <p className="text-sm font-serif italic">Belum ada kartu di folder ini.</p>
+                <p className="text-xs">Mulai buat kartu pertama kamu!</p>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
-
-import { cn } from '../../lib/utils';

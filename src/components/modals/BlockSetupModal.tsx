@@ -30,7 +30,7 @@ export const BlockSetupModal: React.FC = () => {
 
   if (!isFirstTimeSetup) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !target || !start || !end) return;
     
@@ -40,7 +40,7 @@ export const BlockSetupModal: React.FC = () => {
       return;
     }
     
-    setupNewBlock(name, Number(target), new Date(start).toISOString(), new Date(end).toISOString());
+    await setupNewBlock(name, Number(target), new Date(start).toISOString(), new Date(end).toISOString());
   };
 
   const handleShortcut = (days: number) => {

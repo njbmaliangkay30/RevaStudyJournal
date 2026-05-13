@@ -24,10 +24,8 @@ export interface Block {
 
 export interface PPTDot {
   id: string;
-  block_id: string;
-  index: number;
+  done: boolean;
   title?: string;
-  is_done: boolean;
   completed_at?: string;
 }
 
@@ -36,6 +34,7 @@ export interface Flashcard {
   user_id: string;
   question: string;
   answer: string;
+  deck?: string;
   is_difficult: boolean;
   created_at: string;
 }
