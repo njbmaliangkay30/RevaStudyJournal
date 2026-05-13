@@ -80,8 +80,8 @@ export const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange }) => {
             <Sparkle className="text-gold" size={24} />
           </div>
           <div className="opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-[-10px] group-hover:translate-x-0 whitespace-nowrap">
-            <div className="text-white font-serif text-xl leading-tight">Pixie</div>
-            <div className="text-gold font-bold text-[10px] tracking-[0.2em] uppercase">Hollow</div>
+            <div className="text-white font-serif text-xl leading-tight">Revalina</div>
+            <div className="text-gold font-bold text-[10px] tracking-[0.2em] uppercase">Journal</div>
           </div>
         </div>
 

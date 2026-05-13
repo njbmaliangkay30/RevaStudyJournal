@@ -49,13 +49,13 @@ export const Header: React.FC = () => {
   const lifestyleGreeting = useMemo(() => {
     const h = new Date().getHours();
     if (lang === 'id') {
-      if (h < 5) return "Selamat istirahat, peri malam.";
+      if (h < 5) return "Selamat istirahat, Peri kecilku.";
       if (h < 11) return "Semangat mengawali harimu!";
       if (h < 15) return "Mari terus kepakkan sayapmu!";
       if (h < 18) return "Sore yang tenang untuk belajar.";
       return "Waktunya merapikan buku ajaibmu!";
     }
-    if (h < 5) return "Rest well, night pixie.";
+    if (h < 5) return "Rest well, my little fairy.";
     if (h < 11) return "Have a magical morning!";
     if (h < 15) return "Keep flapping those wings!";
     if (h < 18) return "A peaceful evening to learn!";
@@ -109,7 +109,7 @@ export const Header: React.FC = () => {
         }}
       />
 
-      {/* ✨ PIXIE DUST */}
+      {/* ✨ REVALINA GLOW */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-[1]">
         {Array.from({ length: 25 }).map((_, i) => {
           const size = Math.random() * 3 + 1; 
@@ -119,7 +119,7 @@ export const Header: React.FC = () => {
               key={i}
               initial={{ opacity: 0 }}
               animate={{ 
-                opacity: [0, 0.8, 0],
+                opacity: [0, 0.4, 0],
                 y: [-20, -200],
                 x: [0, (Math.random() - 0.5) * 50]
               }}
@@ -135,7 +135,7 @@ export const Header: React.FC = () => {
                 left: `${Math.random() * 100}%`,
                 width: `${size}px`, height: `${size}px`,
                 backgroundColor: color,
-                boxShadow: `0 0 ${size * 3}px ${color}`,
+                boxShadow: `0 0 ${size * 2}px ${color}`,
               }}
             />
           );
@@ -347,7 +347,6 @@ export const Header: React.FC = () => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-2 md:gap-4 p-3 md:py-3 md:px-5 rounded-xl border transition-all duration-300 flex-1 aspect-[4/3] md:aspect-auto relative overflow-hidden group ${
-
                 examDays === 0
                   ? 'border-rose-400 text-white shadow-[0_0_20px_rgba(243,24,100,0.6)]'
                   : examDays <= 3 
@@ -367,7 +366,12 @@ export const Header: React.FC = () => {
 
               {examDays > 3 && examDays <= 7 && (
                 <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none bg-orange-500/10 backdrop-blur-md">
-                  <motion.div animate={{ x: ['-200%', '200%'] }} transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }} className="absolute top-0 bottom-0 w-12 bg-gradient-to-r from-transparent via-orange-400/30 to-transparent skew-x-[-20deg]" />
+                  {/* Fixed Shine Effect: Wider range to ensure it covers the entire box */}
+                  <motion.div 
+                    animate={{ left: ['-100%', '200%'] }} 
+                    transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }} 
+                    className="absolute top-0 bottom-0 w-32 bg-gradient-to-r from-transparent via-orange-400/30 to-transparent skew-x-[-20deg]" 
+                  />
                   <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-orange-400/40 to-transparent" />
                 </div>
               )}
@@ -405,7 +409,8 @@ export const Header: React.FC = () => {
               {/* Hover Highlight Overlay */}
               <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity z-0 pointer-events-none" />
 
-              <CalendarDays size={24} className={`relative z-10 shrink-0 filter drop-shadow-md ${examDays === 0 ? 'text-rose-300 animate-pulse' : examDays <= 3 ? 'text-rose-400 animate-pulse' : examDays <= 7 ? 'text-orange-400' : 'text-emerald-400'}`} />
+              <CalendarDays size={24} className={`relative z-10 shrink-0 filter drop-shadow-md ${examDays === 0 ? 'text-rose-300 animate-pulse' : examDays <= 3 ? 'text-rose-400' : examDays <= 7 ? 'text-orange-400' : 'text-emerald-400'}`} />
+              
               <div className="text-[10px] md:text-xs font-bold text-center md:text-left leading-tight relative w-full md:w-auto z-10 mt-auto md:mt-0">
                 <div className="uppercase opacity-80 text-[8px] md:text-[9px] tracking-wider mb-0.5">{examDays === 0 ? 'Hari H' : 'Ujian'}</div>
                 <div className="flex items-baseline justify-center md:justify-start gap-0.5 h-6 md:h-auto">

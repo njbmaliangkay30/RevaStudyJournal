@@ -31,7 +31,7 @@ export const Flashcards: React.FC = () => {
 
   // Load from local storage if DB is not available or as initial cache
   useEffect(() => {
-    const localCards = localStorage.getItem('pixie_cards');
+    const localCards = localStorage.getItem('revalina_cards');
     if (localCards) {
       try {
         setCards(JSON.parse(localCards));
@@ -43,7 +43,7 @@ export const Flashcards: React.FC = () => {
 
   // Save to local storage whenever cards change
   useEffect(() => {
-    localStorage.setItem('pixie_cards', JSON.stringify(cards));
+    localStorage.setItem('revalina_cards', JSON.stringify(cards));
   }, [cards]);
 
   const fetchCards = async () => {

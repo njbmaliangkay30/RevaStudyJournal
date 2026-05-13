@@ -17,6 +17,7 @@ interface AppState {
   examScore: number | null;
   lang: 'id' | 'en';
   isLoading: boolean;
+  isInitializing: boolean;
   isFirstTimeSetup: boolean;
   needsExamScore: boolean;
   
@@ -36,7 +37,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set, get) => ({
   profile: null,
-  name: "Peri Kecil",
+  name: "Peri kecilku",
   coins: 0,
   theme: 'light',
   target: 40,
@@ -51,6 +52,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   needsExamScore: false,
   lang: 'id',
   isLoading: false,
+  isInitializing: true,
 
   setupNewBlock: async (name: string, target: number, start: string, end: string) => {
     const profile = get().profile;
@@ -264,7 +266,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (data && !error) {
         set({ 
           profile: data, 
-          name: data.username || "Peri Kecil",
+          name: (data.username === "Peri Kecil" || !data.username) ? "Peri kecilku" : data.username,
           coins: data.coins || 0, 
           theme: (data.theme as Theme) || 'light' 
         });
@@ -276,7 +278,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         // Profile doesn't exist, create it
         const newProfile = {
           id: userId,
-          username: "Peri Kecil",
+          username: "Peri kecilku",
           coins: 100, // Starting bonus
           theme: 'light',
           inventory: {},
@@ -299,7 +301,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
     } finally {
-      set({ isLoading: false });
+      set({ isLoading: false, isInitializing: false });
     }
   },
 

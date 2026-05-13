@@ -15,25 +15,46 @@ import { BlockSetupModal } from './components/modals/BlockSetupModal';
 import { ExamScoreModal } from './components/modals/ExamScoreModal';
 import { Fairylights } from './components/ui/Fairylights';
 import { motion, AnimatePresence } from 'motion/react';
-import { Star, Shield, Palette, Volume2 } from 'lucide-react';
+import { Star, Shield, Palette, Volume2, Sparkle } from 'lucide-react';
 import { useAppStore } from './store/useAppStore';
+import { cn } from './lib/utils';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const { theme, setTheme, checkExamDay, isFirstTimeSetup, needsExamScore, fetchProfile } = useAppStore();
+  const [isFinishingLoading, setIsFinishingLoading] = useState(false);
+  const { theme, setTheme, checkExamDay, isFirstTimeSetup, needsExamScore, fetchProfile, isInitializing } = useAppStore();
+
+  const getTimeGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 11) return "Selamat Pagi, Peri kecilku ☀️";
+    if (hour >= 11 && hour < 15) return "Selamat Siang, Semangat Terus! 🌈";
+    if (hour >= 15 && hour < 18) return "Selamat Sore, Waktunya Berproses 🌅";
+    return "Selamat Malam, Mari Belajar Tenang ✨";
+  };
+
+  const [greeting] = useState(getTimeGreeting());
 
   useEffect(() => {
-    // Basic session handling for development
     const initAuth = async () => {
+      const startTime = Date.now();
       try {
-        let userId = localStorage.getItem('pixie_uid');
+        let userId = localStorage.getItem('revalina_uid');
         if (!userId) {
           userId = crypto.randomUUID();
-          localStorage.setItem('pixie_uid', userId);
+          localStorage.setItem('revalina_uid', userId);
         }
         await fetchProfile(userId);
       } catch (err) {
         console.error('Failed to init profile:', err);
+      } finally {
+        // Ensure magic time for smooth transition
+        const elapsed = Date.now() - startTime;
+        const minTime = 2500; // Slightly longer for better feel
+        if (elapsed < minTime) {
+          setTimeout(() => setIsFinishingLoading(true), minTime - elapsed);
+        } else {
+          setIsFinishingLoading(true);
+        }
       }
     };
     initAuth();
@@ -68,7 +89,7 @@ export default function App() {
               <div className="w-32 h-32 bg-gold/10 rounded-full border border-gold/30 flex items-center justify-center text-4xl mb-4 shadow-[0_0_30px_rgba(245,200,66,0.1)]">
                 🔮
               </div>
-              <h2 className="font-serif text-2xl text-white">Magical Gacha</h2>
+              <h2 className="font-serif text-2xl text-white">Revalina Journal Gacha</h2>
               <p className="text-white/40 text-sm mt-2 mb-6">Gunakan 50 Sparkles untuk menarik hadiah langka!</p>
               <button className="bg-gold text-green-deep font-bold px-8 py-3 rounded-full shadow-[0_5px_15px_rgba(245,200,66,0.3)] hover:scale-105 active:scale-95 transition-all">
                 Tarik Hadiah
@@ -79,7 +100,7 @@ export default function App() {
       case 'settings':
         return (
           <div className="space-y-6">
-            <h2 className="font-serif text-2xl text-white mb-6">Peri Settings</h2>
+            <h2 className="font-serif text-2xl text-white mb-6">Journal Settings</h2>
             
             <div className="space-y-3">
               <p className="text-[10px] text-white/30 uppercase tracking-[0.2em] font-bold px-2">Kustomisasi</p>
@@ -119,7 +140,7 @@ export default function App() {
             </div>
 
             <div className="pt-12 text-center">
-              <p className="text-[10px] text-white/20 uppercase tracking-[0.3em] font-bold">Revalina v2.0-ts</p>
+              <p className="text-[10px] text-white/20 uppercase tracking-[0.3em] font-bold">Revalina Study Journal v1.0</p>
               <p className="text-[9px] text-white/10 mt-1 uppercase tracking-widest italic">Built with magic and code</p>
             </div>
           </div>
@@ -132,46 +153,116 @@ export default function App() {
   return (
     <div className="min-h-screen selection:bg-gold/30 relative">
       <Fairylights />
-      <BlockSetupModal />
-      <ExamScoreModal />
       
-      {/* Main Layout Container */}
-      <div className="flex min-h-screen">
-        {/* Left padding for sidebar on desktop */}
-        <div className="hidden md:block w-[72px] shrink-0" />
+      {/* Fixed background decorations - moved outside transition to stay fixed */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden -z-10">
+        <div className="absolute top-1/2 -left-32 w-96 h-96 bg-green-900/5 blur-[120px] rounded-full" />
+        <div className="absolute bottom-0 -right-32 w-[30rem] h-[30rem] bg-gold/[0.03] blur-[150px] rounded-full" />
+      </div>
+
+      {/* App Content */}
+      <div className={cn(
+        "min-h-screen transition-all duration-1000 relative z-10",
+        (!isFinishingLoading || isInitializing) 
+          ? "opacity-0 blur-2xl scale-105 pointer-events-none" 
+          : "opacity-100 blur-0 scale-100"
+      )}>
+        <BlockSetupModal />
+        <ExamScoreModal />
         
-        {/* Content Area */}
-        <div className="flex-1 flex flex-col items-center pb-32 md:pb-12 overflow-x-hidden w-full">
-          {/* Header fills the whole width so background isn't cut off */}
-          <div className="w-full relative z-10 transition-all duration-300">
-            <Header />
-          </div>
-          
-          <div className="w-full max-w-md md:max-w-3xl lg:max-w-4xl xl:max-w-5xl relative z-10 transition-all duration-300">
-            <main className="px-4 md:px-6 lg:px-8 mt-4 lg:mt-8 relative z-10 pb-8">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeTab}
-                  initial={{ opacity: 0, scale: 0.98, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 1.02, y: -10 }}
-                  transition={{ duration: 0.3, ease: 'easeOut' }}
-                >
-                  {renderContent()}
-                </motion.div>
-              </AnimatePresence>
-            </main>
+        <div className="flex min-h-screen">
+          <div className="hidden md:block w-[72px] shrink-0" />
+          <div className="flex-1 flex flex-col items-center pb-32 md:pb-12 overflow-x-hidden w-full">
+            <div className="w-full relative z-10 transition-all duration-300">
+              <Header />
+            </div>
+            
+            <div className="w-full max-w-md md:max-w-3xl lg:max-w-4xl xl:max-w-5xl relative z-10 transition-all duration-300">
+              <main className="px-4 md:px-6 lg:px-8 mt-4 lg:mt-8 relative z-10 pb-8">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 1.02, y: -10 }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                  >
+                    {renderContent()}
+                  </motion.div>
+                </AnimatePresence>
+              </main>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* TabBar moved outside transition div to prevent scrolling issues caused by transforms */}
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
-      
-      {/* Universal Magical Background Elements */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-1/4 -left-20 w-64 h-64 bg-green-900/20 blur-[100px] rounded-full" />
-        <div className="absolute bottom-1/4 -right-20 w-64 h-64 bg-gold/5 blur-[100px] rounded-full" />
-      </div>
+
+      {/* Splash Screen Overlay */}
+      <AnimatePresence>
+        {(!isFinishingLoading || isInitializing) && (
+          <motion.div 
+            key="splash"
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8 }}
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-6 bg-transparent backdrop-blur-[60px] overflow-hidden"
+          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="relative z-10 flex flex-col items-center text-center"
+            >
+              <motion.div 
+                animate={{ y: [0, -15, 0] }}
+                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                className="w-28 h-28 mb-8 relative"
+              >
+                {/* Logo Glow Ring */}
+                <motion.div 
+                  animate={{ 
+                    scale: [1, 1.4, 1],
+                    opacity: [0.3, 0.6, 0.3]
+                  }}
+                  transition={{ repeat: Infinity, duration: 3 }}
+                  className="absolute inset-0 bg-gold/40 blur-3xl rounded-full" 
+                />
+                
+                {/* The Logo Box (matching TabBar style) */}
+                <div className="w-full h-full glass-card rounded-[2.5rem] bg-gradient-to-br from-gold/40 to-gold/5 flex items-center justify-center shadow-[0_20px_50px_rgba(245,200,66,0.3)] border border-gold/40">
+                  <motion.div
+                    animate={{ rotate: [0, 15, -15, 0], scale: [1, 1.1, 1] }}
+                    transition={{ repeat: Infinity, duration: 4 }}
+                  >
+                    <Sparkle className="text-gold" size={56} />
+                  </motion.div>
+                </div>
+              </motion.div>
+              
+              {/* Progress Dots */}
+              <div className="flex gap-3">
+                {[0, 1, 2].map(i => (
+                  <motion.div 
+                    key={i}
+                    animate={{ 
+                      scale: [1, 1.5, 1],
+                      opacity: [0.4, 1, 0.4] 
+                    }}
+                    transition={{ 
+                      repeat: Infinity, 
+                      duration: 1.5, 
+                      delay: i * 0.2 
+                    }}
+                    className="w-2.5 h-2.5 bg-gold rounded-full shadow-[0_0_12px_#FFD700]" 
+                  />
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

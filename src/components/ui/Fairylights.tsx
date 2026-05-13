@@ -29,11 +29,11 @@ export const Fairylights: React.FC = () => {
               delay: Math.random() * 10,
               ease: "linear"
             }}
-            className="absolute rounded-full bg-gold/30 blur-[2px]"
+            className="absolute rounded-full bg-gold/15 blur-[1px]"
             style={{
               width: size,
               height: size,
-              boxShadow: `0 0 ${size * 4}px rgba(245, 200, 66, 0.4)`,
+              boxShadow: `0 0 ${size * 3}px rgba(245, 200, 66, 0.25)`,
             }}
           />
         );
