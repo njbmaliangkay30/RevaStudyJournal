@@ -35,6 +35,7 @@ interface AppState {
   setDotTitle: (index: number, title: string) => Promise<void>;
   fetchActiveBlock: (userId: string) => Promise<void>;
   setSpecialVerified: (verified: boolean) => void;
+  loginWithPermanentUid: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -56,6 +57,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   isLoading: false,
   isInitializing: true,
   isSpecialVerified: false,
+
+  loginWithPermanentUid: async () => {
+    const PERMANENT_UID = 'c097b441-d5c6-4559-abd3-a8a36274054b';
+    localStorage.setItem('revalina_uid', PERMANENT_UID);
+    await get().fetchProfile(PERMANENT_UID);
+    set({ isSpecialVerified: true });
+  },
 
   setupNewBlock: async (name: string, target: number, start: string, end: string) => {
     const profile = get().profile;
