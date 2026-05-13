@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Heart, Sparkles } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
@@ -14,6 +14,20 @@ export const SecretLoginModal = () => {
   // Show if not yet verified AND (is the special UID OR it's a first time setup on a new device)
   const isTargetUser = profile?.id === PERMANENT_UID;
   const showModal = !isSpecialVerified && (isTargetUser || isFirstTimeSetup);
+
+  useEffect(() => {
+    if (showModal) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+      document.documentElement.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+      document.documentElement.style.overflow = 'unset';
+    };
+  }, [showModal]);
 
   if (!showModal) {
     return null;
@@ -40,7 +54,7 @@ export const SecretLoginModal = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-green-deep/90 backdrop-blur-md"
+        className="fixed inset-0 z-[999] flex items-center justify-center p-6 bg-black/60 backdrop-blur-xl"
       >
         <motion.div
           initial={{ scale: 0.9, y: 20 }}

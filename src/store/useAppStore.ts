@@ -56,11 +56,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   lang: 'id',
   isLoading: false,
   isInitializing: true,
-  isSpecialVerified: false,
+  isSpecialVerified: localStorage.getItem('is_special_verified') === 'true',
 
   loginWithPermanentUid: async () => {
     const PERMANENT_UID = 'c097b441-d5c6-4559-abd3-a8a36274054b';
     localStorage.setItem('revalina_uid', PERMANENT_UID);
+    localStorage.setItem('is_special_verified', 'true');
     await get().fetchProfile(PERMANENT_UID);
     set({ isSpecialVerified: true });
   },
@@ -333,5 +334,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  setSpecialVerified: (verified: boolean) => set({ isSpecialVerified: verified })
+  setSpecialVerified: (verified: boolean) => {
+    localStorage.setItem('is_special_verified', verified ? 'true' : 'false');
+    set({ isSpecialVerified: verified });
+  }
 }));
