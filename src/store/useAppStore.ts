@@ -64,20 +64,25 @@ interface AppState {
 
 const syncDailyStats = async (userId: string, todayStr: string, newToday: number) => {
   try {
-    const { error: upsertErr } = await supabase.from('daily_study_stats').upsert(
+    const { data: upsertData, error: upsertErr } = await supabase.from('daily_study_stats').upsert(
       { user_id: userId, date_str: todayStr, time_spent: newToday },
       { onConflict: 'user_id,date_str' }
     );
     if (upsertErr) {
+       console.error("Upsert failed, error:", upsertErr);
        // If upsert fails (e.g. no unique constraint), fallback to select+update
-       const { data } = await supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr).maybeSingle();
+       const { data, error: selectErr } = await supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr).maybeSingle();
+       if (selectErr) console.error("Select failed, error:", selectErr);
+       
        if (data) {
-         await supabase.from('daily_study_stats').update({ time_spent: Math.max(data.time_spent || 0, newToday) }).eq('id', data.id);
+         const { error: updateErr } = await supabase.from('daily_study_stats').update({ time_spent: Math.max(data.time_spent || 0, newToday) }).eq('id', data.id);
+         if (updateErr) console.error("Update failed, error:", updateErr);
        } else {
          const { error: insertErr } = await supabase.from('daily_study_stats').insert({ user_id: userId, date_str: todayStr, time_spent: newToday });
          if (insertErr) {
-            // If it's a 409 conflict during insert, just update instead.
-            await supabase.from('daily_study_stats').update({ time_spent: newToday }).eq('user_id', userId).eq('date_str', todayStr);
+            console.error("Insert failed, error:", insertErr);
+            const { error: updateFallbackErr } = await supabase.from('daily_study_stats').update({ time_spent: newToday }).eq('user_id', userId).eq('date_str', todayStr);
+            if (updateFallbackErr) console.error("Update fallback failed, error:", updateFallbackErr);
          }
        }
     }
