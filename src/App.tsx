@@ -41,10 +41,11 @@ export default function App() {
       try {
         let userId = localStorage.getItem('revalina_uid');
         if (!userId) {
-          userId = crypto.randomUUID();
-          localStorage.setItem('revalina_uid', userId);
+          // Do not create a new profile immediately. Let the secret modal show up first.
+          useAppStore.setState({ isInitializing: false, isFirstTimeSetup: true });
+        } else {
+          await fetchProfile(userId);
         }
-        await fetchProfile(userId);
       } catch (err) {
         console.error('Failed to init profile:', err);
       } finally {
@@ -168,10 +169,6 @@ export default function App() {
           ? "opacity-0 blur-2xl scale-105 pointer-events-none" 
           : "opacity-100 blur-0 scale-100"
       )}>
-        <SecretLoginModal />
-        <BlockSetupModal />
-        <ExamScoreModal />
-        
         <div className="flex min-h-screen">
           <div className="hidden md:block w-[72px] shrink-0" />
           <div className="flex-1 flex flex-col items-center pb-32 md:pb-12 overflow-x-hidden w-full">
@@ -200,6 +197,11 @@ export default function App() {
 
       {/* TabBar moved outside transition div to prevent scrolling issues caused by transforms */}
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {/* Modals placed outside stacking contexts so they correctly cover TabBar */}
+      <SecretLoginModal />
+      <BlockSetupModal />
+      <ExamScoreModal />
 
       {/* Splash Screen Overlay */}
       <AnimatePresence>

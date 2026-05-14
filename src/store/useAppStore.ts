@@ -287,7 +287,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         // Fetch active block and its progress
         await get().fetchActiveBlock(userId);
       } else if (error && error.code === 'PGRST116') {
-        // Profile doesn't exist, create it
+        const PERMANENT_UID = 'c097b441-d5c6-4559-abd3-a8a36274054b';
+        if (userId !== PERMANENT_UID) {
+          // If the cached userId is not the permanent UID and it doesn't exist, don't create it.
+          // Clear it out to force the secret login popup.
+          localStorage.removeItem('revalina_uid');
+          set({ isFirstTimeSetup: true, isInitializing: false, isLoading: false });
+          return;
+        }
+
+        // Profile doesn't exist, create it ONLY if it's the intended permanent user
         const newProfile = {
           id: userId,
           username: "Peri kecilku",

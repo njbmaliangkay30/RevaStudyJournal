@@ -4,7 +4,7 @@ import { Heart, Sparkles } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
 export const SecretLoginModal = () => {
-  const { profile, isSpecialVerified, setSpecialVerified, isFirstTimeSetup, loginWithPermanentUid } = useAppStore();
+  const { profile, isSpecialVerified, setSpecialVerified, isFirstTimeSetup, loginWithPermanentUid, theme } = useAppStore();
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState(false);
 
@@ -50,21 +50,29 @@ export const SecretLoginModal = () => {
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[999] flex items-center justify-center p-6 bg-black/60 backdrop-blur-xl"
-      >
+      <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        />
         <motion.div
-          initial={{ scale: 0.9, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          className="w-full max-w-sm glass-card p-8 text-center relative overflow-hidden"
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className={`relative w-full max-w-md backdrop-blur-2xl rounded-[2rem] shadow-2xl overflow-hidden border p-6 sm:p-8 text-center ${
+            theme === 'moon' 
+              ? 'bg-slate-900/50 border-indigo-500/20 shadow-[0_0_50px_-12px_rgba(79,70,229,0.25)]' :
+            theme === 'sakura' 
+              ? 'bg-rose-950/50 border-rose-500/20 shadow-[0_0_50px_-12px_rgba(225,29,72,0.25)]' :
+            'bg-emerald-950/50 border-emerald-500/20 shadow-[0_0_50px_-12px_rgba(16,185,129,0.25)]'
+          }`}
         >
           {/* Decorative background */}
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-gold to-transparent opacity-50" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-32 bg-white/5 blur-3xl rounded-full" />
           
-          <div className="flex justify-center mb-6">
+          <div className="flex justify-center mb-6 relative z-10">
             <div className="w-20 h-20 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center relative">
               <Heart className="text-gold fill-gold/20" size={40} />
               <motion.div
@@ -108,11 +116,11 @@ export const SecretLoginModal = () => {
             </button>
           </form>
 
-          <p className="mt-8 text-[10px] text-white/20 uppercase tracking-[0.2em]">
+          <p className="mt-8 text-[10px] text-white/20 uppercase tracking-[0.2em] relative z-10">
             Identity Verification Required
           </p>
         </motion.div>
-      </motion.div>
+      </div>
     </AnimatePresence>
   );
 };
