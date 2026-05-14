@@ -62,6 +62,30 @@ interface AppState {
   syncTimer: () => void;
 }
 
+const syncDailyStats = async (userId: string, todayStr: string, newToday: number) => {
+  try {
+    const { error: upsertErr } = await supabase.from('daily_study_stats').upsert(
+      { user_id: userId, date_str: todayStr, time_spent: newToday },
+      { onConflict: 'user_id,date_str' }
+    );
+    if (upsertErr) {
+       // If upsert fails (e.g. no unique constraint), fallback to select+update
+       const { data } = await supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr).maybeSingle();
+       if (data) {
+         await supabase.from('daily_study_stats').update({ time_spent: Math.max(data.time_spent || 0, newToday) }).eq('id', data.id);
+       } else {
+         const { error: insertErr } = await supabase.from('daily_study_stats').insert({ user_id: userId, date_str: todayStr, time_spent: newToday });
+         if (insertErr) {
+            // If it's a 409 conflict during insert, just update instead.
+            await supabase.from('daily_study_stats').update({ time_spent: newToday }).eq('user_id', userId).eq('date_str', todayStr);
+         }
+       }
+    }
+  } catch (e) {
+    console.error("Daily stats sync error:", e);
+  }
+};
+
 export const useAppStore = create<AppState>((set, get) => ({
   profile: null,
   name: "Peri kecilku",
@@ -132,22 +156,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Sync to supabase
       const userId = get().profile?.id;
       if (userId) {
-        (async () => {
-          try {
-            const { data, error } = await supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr).maybeSingle();
-            if (error) console.error("Error fetching daily stats:", error);
-            
-            if (data) {
-               const { error: updateErr } = await supabase.from('daily_study_stats').update({ time_spent: Math.max(data.time_spent || 0, newToday) }).eq('id', data.id);
-               if (updateErr) console.error("Error updating daily stats:", updateErr);
-            } else {
-               const { error: insertErr } = await supabase.from('daily_study_stats').insert({ user_id: userId, date_str: todayStr, time_spent: newToday });
-               if (insertErr) console.error("Error inserting daily stats:", insertErr);
-            }
-          } catch(e) {
-            console.error("Daily stats sync catch block:", e);
-          }
-        })();
+        syncDailyStats(userId, todayStr, newToday);
         if (blockId) {
           supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
         }
@@ -192,22 +201,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         const userId = get().profile?.id;
         if (userId) {
-          (async () => {
-            try {
-              const { data, error } = await supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr).maybeSingle();
-              if (error) console.error("Error fetching daily stats:", error);
-              
-              if (data) {
-                 const { error: updateErr } = await supabase.from('daily_study_stats').update({ time_spent: Math.max(data.time_spent || 0, newToday) }).eq('id', data.id);
-                 if (updateErr) console.error("Error updating daily stats:", updateErr);
-              } else {
-                 const { error: insertErr } = await supabase.from('daily_study_stats').insert({ user_id: userId, date_str: todayStr, time_spent: newToday });
-                 if (insertErr) console.error("Error inserting daily stats:", insertErr);
-              }
-            } catch(e) {
-              console.error("Daily stats sync catch block:", e);
-            }
-          })();
+          syncDailyStats(userId, todayStr, newToday);
           if (blockId) {
             supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
           }
@@ -245,22 +239,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         const userId = get().profile?.id;
         if (userId) {
-          (async () => {
-            try {
-              const { data, error } = await supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr).maybeSingle();
-              if (error) console.error("Error fetching daily stats:", error);
-              
-              if (data) {
-                 const { error: updateErr } = await supabase.from('daily_study_stats').update({ time_spent: Math.max(data.time_spent || 0, newToday) }).eq('id', data.id);
-                 if (updateErr) console.error("Error updating daily stats:", updateErr);
-              } else {
-                 const { error: insertErr } = await supabase.from('daily_study_stats').insert({ user_id: userId, date_str: todayStr, time_spent: newToday });
-                 if (insertErr) console.error("Error inserting daily stats:", insertErr);
-              }
-            } catch(e) {
-              console.error("Daily stats sync catch block:", e);
-            }
-          })();
+          syncDailyStats(userId, todayStr, newToday);
           if (blockId) {
             supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
           }
