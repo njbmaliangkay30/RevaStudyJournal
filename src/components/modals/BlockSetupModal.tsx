@@ -10,6 +10,7 @@ export const BlockSetupModal: React.FC = () => {
   const [target, setTarget] = useState<number | ''>('');
   
   const PERMANENT_UID = 'c097b441-d5c6-4559-abd3-a8a36274054b';
+  const TEST_UID = 'a123b456-c789-0123-d456-e789f0123456';
   
   // Format today as YYYY-MM-DD
   const today = new Date().toISOString().split('T')[0];
@@ -31,7 +32,7 @@ export const BlockSetupModal: React.FC = () => {
   }, [isFirstTimeSetup]);
 
   // Handle special verification requirement
-  const needsSpecialVerification = profile?.id === PERMANENT_UID && !isSpecialVerified;
+  const needsSpecialVerification = (profile?.id === PERMANENT_UID || profile?.id === TEST_UID) && !isSpecialVerified;
 
   if (!isFirstTimeSetup || needsSpecialVerification) return null;
 

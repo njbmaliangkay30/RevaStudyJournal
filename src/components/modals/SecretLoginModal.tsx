@@ -4,15 +4,17 @@ import { Heart, Sparkles } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 
 export const SecretLoginModal = () => {
-  const { profile, isSpecialVerified, setSpecialVerified, isFirstTimeSetup, loginWithPermanentUid, theme } = useAppStore();
+  const { profile, isSpecialVerified, setSpecialVerified, isFirstTimeSetup, loginWithPermanentUid, loginWithTestUid, theme } = useAppStore();
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState(false);
 
   const PERMANENT_UID = 'c097b441-d5c6-4559-abd3-a8a36274054b';
   const SECRET_CODE = 'aku sayang kamu sedunia';
+  const TEST_UID = 'a123b456-c789-0123-d456-e789f0123456';
+  const TEST_CODE = 'test';
 
   // Show if not yet verified AND (is the special UID OR it's a first time setup on a new device)
-  const isTargetUser = profile?.id === PERMANENT_UID;
+  const isTargetUser = profile?.id === PERMANENT_UID || profile?.id === TEST_UID;
   const showModal = !isSpecialVerified && (isTargetUser || isFirstTimeSetup);
 
   useEffect(() => {
@@ -35,10 +37,17 @@ export const SecretLoginModal = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (answer.toLowerCase().trim() === SECRET_CODE.toLowerCase()) {
-      if (!isTargetUser) {
-        // Switch to the permanent account if this is a new device
+    const input = answer.toLowerCase().trim();
+    if (input === SECRET_CODE.toLowerCase()) {
+      if (!isTargetUser || profile?.id !== PERMANENT_UID) {
+        // Switch to the permanent account if this is a new device or currently on another account
         await loginWithPermanentUid();
+      } else {
+        setSpecialVerified(true);
+      }
+    } else if (input === TEST_CODE.toLowerCase()) {
+      if (!isTargetUser || profile?.id !== TEST_UID) {
+        await loginWithTestUid();
       } else {
         setSpecialVerified(true);
       }

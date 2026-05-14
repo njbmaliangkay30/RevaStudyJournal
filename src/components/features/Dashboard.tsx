@@ -1,108 +1,226 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, BarChart3, CheckCircle2, Clock, Star, Target, Zap } from 'lucide-react';
-import { useAppStore } from '../../store/useAppStore';
-import { supabase } from '../../lib/supabase';
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  Trophy,
+  BarChart3,
+  CheckCircle2,
+  Clock,
+  Star,
+  Target,
+  Zap,
+} from "lucide-react";
+import { useAppStore } from "../../store/useAppStore";
+import { supabase } from "../../lib/supabase";
 
 export const Dashboard: React.FC = () => {
-    const { profile, target, pptDots, blockStart, blockEnd, lang } = useAppStore();
-    const [leaderboardTab, setLeaderboardTab] = useState<'score' | 'recent'>('score');
-    const [pastBlocks, setPastBlocks] = useState<any[]>([]);
-    const [weeklyActivity, setWeeklyActivity] = useState<{day: string, slides: number}[]>([]);
+  const { profile, target, pptDots, blockStart, blockEnd, lang, blockId, timerAccumulatedTime, timerIsActive, timerLastStartTime } =
+    useAppStore();
+  const [leaderboardTab, setLeaderboardTab] = useState<"score" | "recent" | "time">(
+    "score",
+  );
+  const [pastBlocks, setPastBlocks] = useState<any[]>([]);
+  const [weeklyActivity, setWeeklyActivity] = useState<
+    { day: string; slides: number }[]
+  >([]);
 
-    useEffect(() => {
-      if (!profile) return;
+  const [dailyStats, setDailyStats] = useState({ today: 0, yesterday: 0 });
 
-      const fetchData = async () => {
-        // Fetch past blocks
-        const { data: blocks } = await supabase
-          .from('study_blocks')
-          .select('*')
-          .eq('user_id', profile.id)
-          .eq('is_active', false)
-          .order('created_at', { ascending: false });
-        
-        if (blocks) {
-          const formattedBlocks = blocks.map(b => ({
+  useEffect(() => {
+    if (!profile) return;
+
+    const fetchData = async () => {
+      // Get today and yesterday dates
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      const formatLocalStr = (d: Date) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+      
+      const todayStr = formatLocalStr(today);
+      const yesterdayStr = formatLocalStr(yesterday);
+
+      // Fetch study stats from Supabase
+      const { data: stats } = await supabase
+        .from('daily_study_stats')
+        .select('date_str, time_spent')
+        .eq('user_id', profile.id)
+        .in('date_str', [todayStr, yesterdayStr]);
+      
+      let tStr = 0;
+      let yStr = 0;
+      if (stats) {
+        stats.forEach(s => {
+          if (s.date_str === todayStr) tStr = s.time_spent;
+          if (s.date_str === yesterdayStr) yStr = s.time_spent;
+        });
+      }
+
+      // Check localStorage for more recent today data
+      const localToday = parseInt(localStorage.getItem(`study_time_${todayStr}`) || "0");
+      const localYesterday = parseInt(localStorage.getItem(`study_time_${yesterdayStr}`) || "0");
+
+      setDailyStats({ 
+        today: Math.max(tStr, localToday), 
+        yesterday: Math.max(yStr, localYesterday) 
+      });
+
+      // Fetch all blocks
+      const { data: blocks } = await supabase
+        .from("study_blocks")
+        .select("*, ppt_dots(id, is_done)")
+        .eq("user_id", profile.id)
+        .order("created_at", { ascending: false });
+
+      if (blocks) {
+        const formattedBlocks = blocks.map((b) => {
+          let completedSlides = 0;
+          if (b.id === blockId) {
+            completedSlides = pptDots ? pptDots.filter(d => d.done).length : 0;
+          } else {
+            completedSlides = (b.ppt_dots && b.ppt_dots.length > 0)
+              ? b.ppt_dots.filter((d: any) => d.is_done).length
+              : b.target_slides;
+          }
+
+          let totalTime = parseInt(localStorage.getItem(`study_time_block_${b.id}`) || "0");
+          if (b.id === blockId && timerIsActive && timerLastStartTime > 0) {
+            totalTime += Math.max(0, Math.floor((Date.now() - timerLastStartTime) / 1000));
+          }
+
+          return {
             id: b.id,
             name: b.name,
-            slides: b.target_slides, // Past blocks are considered completed
+            slides: completedSlides,
             total: b.target_slides,
             score: b.exam_score || 0,
             lastActiveMs: new Date(b.created_at).getTime(),
             lastActive: new Date(b.created_at).toLocaleDateString(),
-            efficiency: 100 
-          }));
-          setPastBlocks(formattedBlocks);
-        }
-
-        // Calculate weekly activity (simplified for now - checking ppt_dots completed_at)
-        const days = lang === 'id' ? ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const activity = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - (6 - i));
-          const dayName = days[d.getDay()];
-          
-          // Count completed dots for this day
-          const dateStr = d.toISOString().split('T')[0];
-          const count = pptDots.filter(dot => dot.done && dot.completed_at && dot.completed_at.startsWith(dateStr)).length;
-          
-          return { day: dayName, slides: count };
+            timeSpent: totalTime,
+            efficiency:
+              b.target_slides > 0
+                ? Math.min(
+                    100,
+                    Math.round((completedSlides / b.target_slides) * 100),
+                  )
+                : 100,
+          };
         });
-        setWeeklyActivity(activity);
+        setPastBlocks(formattedBlocks);
+      }
+
+      // Calculate weekly activity (simplified for now - checking ppt_dots completed_at)
+      const days =
+        lang === "id"
+          ? ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"]
+          : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+      const getLocalDateStr = (d: Date) => {
+        return (
+          d.getFullYear() +
+          "-" +
+          String(d.getMonth() + 1).padStart(2, "0") +
+          "-" +
+          String(d.getDate()).padStart(2, "0")
+        );
       };
 
-      fetchData();
-    }, [profile, pptDots, lang]);
+      const activity = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (6 - i));
+        const dayName = days[d.getDay()];
 
-    const doneCount = pptDots ? pptDots.filter(d => d.done).length : 0;
-    const safeTarget = typeof target === 'number' ? target : 0;
-    const remaining = Math.max(0, safeTarget - doneCount);
-    const progress = safeTarget > 0 ? Math.min(100, Math.round((doneCount / safeTarget) * 100)) : 0;
-    
-    const daysLeft = blockEnd ? Math.max(1, Math.ceil((new Date(blockEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 1;
-    const idealDaily = Math.ceil(remaining / daysLeft);
+        // Count completed dots for this day
+        const dateStr = getLocalDateStr(d);
+        const count = pptDots.filter((dot) => {
+          if (!dot.done || !dot.completed_at) return false;
+          return getLocalDateStr(new Date(dot.completed_at)) === dateStr;
+        }).length;
 
-    let blockLabel = "Belum Diatur";
-    let subTitle = "";
-    if (blockStart && blockEnd) {
-      const s = new Date(blockStart).toLocaleDateString(lang === 'id' ? 'id-ID' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' });
-      const e = new Date(blockEnd).toLocaleDateString(lang === 'id' ? 'id-ID' : 'en-US', { weekday: 'short', day: 'numeric', month: 'short' });
-      subTitle = `${s} – ${e}`;
-      blockLabel = useAppStore.getState().blockName || "Target Belajar";
-    }
+        return { day: dayName, slides: count };
+      });
+      setWeeklyActivity(activity);
+    };
 
-    const displayBlocks = leaderboardTab === 'score' 
+    fetchData();
+  }, [profile, pptDots, lang, blockId]);
+
+  const doneCount = pptDots ? pptDots.filter((d) => d.done).length : 0;
+  const safeTarget = typeof target === "number" ? target : 0;
+  const remaining = Math.max(0, safeTarget - doneCount);
+  const progress =
+    safeTarget > 0
+      ? Math.min(100, Math.round((doneCount / safeTarget) * 100))
+      : 0;
+
+  const daysLeft = blockEnd
+    ? Math.max(
+        1,
+        Math.ceil(
+          (new Date(blockEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+        ),
+      )
+    : 1;
+  const idealDaily = Math.ceil(remaining / daysLeft);
+
+  let blockLabel = "Belum Diatur";
+  let subTitle = "";
+  if (blockStart && blockEnd) {
+    const s = new Date(blockStart).toLocaleDateString(
+      lang === "id" ? "id-ID" : "en-US",
+      { weekday: "short", day: "numeric", month: "short" },
+    );
+    const e = new Date(blockEnd).toLocaleDateString(
+      lang === "id" ? "id-ID" : "en-US",
+      { weekday: "short", day: "numeric", month: "short" },
+    );
+    subTitle = `${s} – ${e}`;
+    blockLabel = useAppStore.getState().blockName || "Target Belajar";
+  }
+
+  const displayBlocks =
+    leaderboardTab === "score"
       ? [...pastBlocks].sort((a, b) => b.score - a.score)
+      : leaderboardTab === "time"
+      ? [...pastBlocks].sort((a, b) => b.timeSpent - a.timeSpent)
       : [...pastBlocks].sort((a, b) => b.lastActiveMs - a.lastActiveMs);
 
-    const maxSlides = Math.max(1, ...weeklyActivity.map(d => d.slides));
+  const maxSlides = Math.max(1, ...weeklyActivity.map((d) => d.slides));
 
-    // Get recent completed slides from pptDots (ones that have a title and are done)
-    const recentReadings = pptDots && pptDots.length > 0 
+  const formatHrsMins = (sec: number) => {
+    if (!sec) return "0m";
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    if (h > 0) return `${h}j ${m}m`;
+    return `${m}m`;
+  };
+
+  // Get recent completed slides from pptDots (ones that have a title and are done)
+  const recentReadings =
+    pptDots && pptDots.length > 0
       ? pptDots
-          .filter(dot => dot.done && dot.title)
+          .filter((dot) => dot.done && dot.title)
           .map((dot) => {
-            const timeStr = dot.completed_at 
-              ? new Date(dot.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              : 'Baru saja';
+            const timeStr = dot.completed_at
+              ? new Date(dot.completed_at).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "Baru saja";
             return {
               id: dot.id,
               title: dot.title,
               slides: 1,
-              time: timeStr
+              time: timeStr,
             };
           })
           .slice(-3)
           .reverse()
-      : [
-          { id: '1', title: 'Belum ada progress', slides: 0, time: '-' }
-        ];
+      : [{ id: "1", title: "Belum ada progress", slides: 0, time: "-" }];
 
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Target Belajar Progress */}
-      <motion.div 
+      <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         className="glass-card p-4 sm:p-6 bg-gradient-to-br from-gold/20 via-transparent to-transparent flex flex-col gap-4 sm:gap-6 relative group"
@@ -118,7 +236,10 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
           <div className="w-16 h-16 rounded-full border-[3px] border-white/5 flex items-center justify-center relative shadow-[inset_0_0_10px_rgba(245,200,66,0.1)]">
-            <svg viewBox="0 0 36 36" className="w-16 h-16 absolute -inset-[3px] origin-center rotate-[-90deg]">
+            <svg
+              viewBox="0 0 36 36"
+              className="w-16 h-16 absolute -inset-[3px] origin-center rotate-[-90deg]"
+            >
               <path
                 d="M18 2.0845
                   a 15.9155 15.9155 0 0 1 0 31.831
@@ -153,11 +274,15 @@ export const Dashboard: React.FC = () => {
               Terselesaikan
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-serif font-black text-white drop-shadow-md">{doneCount}</span>
-              <span className="text-[10px] sm:text-xs text-white/40 font-medium">/ <span className="text-white/60">{safeTarget}</span> slide</span>
+              <span className="text-2xl sm:text-3xl font-serif font-black text-white drop-shadow-md">
+                {doneCount}
+              </span>
+              <span className="text-[10px] sm:text-xs text-white/40 font-medium">
+                / <span className="text-white/60">{safeTarget}</span> slide
+              </span>
             </div>
           </div>
-          
+
           {/* Remaining */}
           <div className="bg-black/20 rounded-2xl p-4 border border-white/10 shadow-inner flex flex-col justify-center">
             <div className="text-[9px] sm:text-[10px] text-white/50 font-bold tracking-widest uppercase mb-1 drop-shadow-sm flex items-center gap-1.5">
@@ -165,8 +290,12 @@ export const Dashboard: React.FC = () => {
               Sisa Target
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl sm:text-3xl font-serif font-black text-rose-100 drop-shadow-md">{remaining}</span>
-              <span className="text-[10px] sm:text-xs text-white/40 font-medium">slide</span>
+              <span className="text-2xl sm:text-3xl font-serif font-black text-rose-100 drop-shadow-md">
+                {remaining}
+              </span>
+              <span className="text-[10px] sm:text-xs text-white/40 font-medium">
+                slide
+              </span>
             </div>
           </div>
 
@@ -178,9 +307,25 @@ export const Dashboard: React.FC = () => {
               Ideal Harian
             </div>
             <div className="flex items-baseline gap-1.5 relative z-10">
-              <span className="text-2xl sm:text-3xl font-serif font-black text-gold drop-shadow-md">{idealDaily}</span>
-              <span className="text-[10px] sm:text-xs text-white/40 font-medium">slide <span className="opacity-60">/hr</span></span>
+              <span className="text-2xl sm:text-3xl font-serif font-black text-gold drop-shadow-md">
+                {idealDaily}
+              </span>
+              <span className="text-[10px] sm:text-xs text-white/40 font-medium">
+                slide <span className="opacity-60">/hr</span>
+              </span>
             </div>
+          </div>
+        </div>
+
+        {/* Daily Study Time Row */}
+        <div className="flex justify-between items-center mt-2 pt-4">
+          <div className="flex flex-col bg-white/10 border border-white/20 rounded-xl px-4 py-3 flex-1 mr-2 shadow-sm">
+            <span className="text-[11px] text-white/70 uppercase tracking-widest font-bold mb-1">Kemarin</span>
+            <span className="text-xl font-bold font-mono text-white">{formatHrsMins(dailyStats.yesterday)}</span>
+          </div>
+          <div className="flex flex-col items-end bg-cyan-900/40 border border-cyan-400/30 rounded-xl px-4 py-3 flex-1 ml-2 shadow-[0_0_15px_rgba(34,211,238,0.1)]">
+            <span className="text-[11px] text-cyan-300 uppercase tracking-widest font-bold mb-1 flex items-center gap-1 justify-end w-full"><Zap size={12} className="text-cyan-400" /> Hari Ini</span>
+            <span className="text-2xl font-bold font-mono text-cyan-50 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]">{formatHrsMins(dailyStats.today)}</span>
           </div>
         </div>
 
@@ -188,22 +333,33 @@ export const Dashboard: React.FC = () => {
         <div className="mt-2 bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
           <div className="text-[10px] text-white/60 font-bold uppercase tracking-widest flex justify-between items-center mb-1">
             <span>Riwayat Selesai Hari Ini</span>
-            {doneCount >= safeTarget && safeTarget > 0 && <span className="text-emerald-400">Target Tercapai! 🎉</span>}
+            {doneCount >= safeTarget && safeTarget > 0 && (
+              <span className="text-emerald-400">Target Tercapai! 🎉</span>
+            )}
           </div>
-          
+
           <div className="flex flex-col gap-2">
             {recentReadings.map((reading) => (
-              <div key={reading.id} className="bg-black/30 flex items-center justify-between p-3 rounded-xl border border-white/5">
+              <div
+                key={reading.id}
+                className="bg-black/30 flex items-center justify-between p-3 rounded-xl border border-white/5"
+              >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-gold/10 flex items-center justify-center shrink-0">
                     <CheckCircle2 size={14} className="text-gold" />
                   </div>
                   <div>
-                    <h4 className="text-white/90 font-bold text-xs sm:text-sm">{reading.title}</h4>
-                    <p className="text-white/40 text-[9px] uppercase tracking-wider font-bold mt-0.5">{reading.slides} Slide</p>
+                    <h4 className="text-white/90 font-bold text-xs sm:text-sm">
+                      {reading.title}
+                    </h4>
+                    <p className="text-white/40 text-[9px] uppercase tracking-wider font-bold mt-0.5">
+                      {reading.slides} Slide
+                    </p>
                   </div>
                 </div>
-                <div className="text-[9px] font-bold text-white/30 uppercase tracking-widest">{reading.time}</div>
+                <div className="text-[9px] font-bold text-white/30 uppercase tracking-widest">
+                  {reading.time}
+                </div>
               </div>
             ))}
           </div>
@@ -213,7 +369,9 @@ export const Dashboard: React.FC = () => {
       {/* Weekly Activity Chart */}
       <div className="glass-card p-4 sm:p-6 bg-gradient-to-tr from-white/5 to-transparent">
         <div className="flex justify-between items-center mb-5">
-          <h3 className="font-serif text-xl text-white">Aktivitas Minggu Ini</h3>
+          <h3 className="font-serif text-xl text-white">
+            Aktivitas Minggu Ini
+          </h3>
           <BarChart3 size={16} className="text-emerald-400" />
         </div>
         <div className="bg-black/30 rounded-2xl p-4 border border-white/5 h-40 flex items-end justify-between gap-2 overflow-hidden relative">
@@ -221,9 +379,12 @@ export const Dashboard: React.FC = () => {
           {weeklyActivity.map((day, idx) => {
             const heightPct = Math.max(5, (day.slides / maxSlides) * 100);
             return (
-              <div key={day.day} className="flex flex-col items-center gap-2 flex-1 group">
+              <div
+                key={day.day}
+                className="flex flex-col items-center gap-2 flex-1 group"
+              >
                 <div className="w-full relative flex justify-center items-end h-24">
-                  <motion.div 
+                  <motion.div
                     initial={{ height: 0 }}
                     animate={{ height: `${heightPct}%` }}
                     transition={{ duration: 1, delay: idx * 0.1 }}
@@ -251,26 +412,32 @@ export const Dashboard: React.FC = () => {
             <h3 className="font-serif text-xl text-white">Leaderboard Blok</h3>
             <Trophy size={16} className="text-gold" />
           </div>
-          
-          <div className="flex bg-black/40 rounded-xl p-1 border border-white/5 items-center max-w-[240px] w-full">
+
+          <div className="flex bg-black/40 rounded-xl p-1 border border-white/5 items-center w-full">
             <button
-              onClick={() => setLeaderboardTab('score')}
-              className={`flex-1 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${leaderboardTab === 'score' ? 'bg-white/10 text-gold shadow-md' : 'text-white/40 hover:text-white/70'}`}
+              onClick={() => setLeaderboardTab("score")}
+              className={`flex-1 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${leaderboardTab === "score" ? "bg-white/10 text-gold shadow-md" : "text-white/40 hover:text-white/70"}`}
             >
               <Star size={12} /> Nilai
             </button>
             <button
-              onClick={() => setLeaderboardTab('recent')}
-              className={`flex-1 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${leaderboardTab === 'recent' ? 'bg-white/10 text-emerald-400 shadow-md' : 'text-white/40 hover:text-white/70'}`}
+              onClick={() => setLeaderboardTab("recent")}
+              className={`flex-1 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${leaderboardTab === "recent" ? "bg-white/10 text-emerald-400 shadow-md" : "text-white/40 hover:text-white/70"}`}
             >
               <Clock size={12} /> Terbaru
+            </button>
+            <button
+              onClick={() => setLeaderboardTab("time")}
+              className={`flex-1 px-2 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${leaderboardTab === "time" ? "bg-white/10 text-cyan-400 shadow-md" : "text-white/40 hover:text-white/70"}`}
+            >
+              <Zap size={12} /> Waktu
             </button>
           </div>
         </div>
         <div className="flex flex-col gap-3">
           <AnimatePresence mode="popLayout">
             {displayBlocks.map((block, idx) => (
-              <motion.div 
+              <motion.div
                 key={block.id}
                 layout
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -280,20 +447,27 @@ export const Dashboard: React.FC = () => {
                 className="bg-black/30 rounded-2xl p-4 border border-white/5 relative overflow-hidden flex items-center gap-4 group hover:bg-white/5 transition-colors"
               >
                 {/* Rank/Recent Badge */}
-                <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold text-sm border ${
-                  leaderboardTab === 'score' && idx === 0 ? 'bg-gold/20 border-gold/40 text-gold shadow-[0_0_15px_rgba(245,200,66,0.2)]' :
-                  leaderboardTab === 'score' && idx === 1 ? 'bg-slate-300/20 border-slate-300/40 text-slate-200' :
-                  leaderboardTab === 'score' && idx === 2 ? 'bg-amber-700/20 border-amber-700/40 text-amber-500' :
-                  'bg-white/5 border-white/10 text-white/50'
-                }`}>
-                  {leaderboardTab === 'score' ? idx + 1 : '-'}
+                <div
+                  className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bold text-sm border ${
+                    (leaderboardTab === "score" || leaderboardTab === "time") && idx === 0
+                      ? "bg-gold/20 border-gold/40 text-gold shadow-[0_0_15px_rgba(245,200,66,0.2)]"
+                      : (leaderboardTab === "score" || leaderboardTab === "time") && idx === 1
+                        ? "bg-slate-300/20 border-slate-300/40 text-slate-200"
+                        : (leaderboardTab === "score" || leaderboardTab === "time") && idx === 2
+                          ? "bg-amber-700/20 border-amber-700/40 text-amber-500"
+                          : "bg-white/5 border-white/10 text-white/50"
+                  }`}
+                >
+                  {leaderboardTab === "score" || leaderboardTab === "time" ? idx + 1 : "-"}
                 </div>
 
                 {/* Block Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start gap-2">
-                    <p className="text-white/90 font-bold text-sm tracking-wide truncate">{block.name}</p>
-                    {leaderboardTab === 'recent' && (
+                    <p className="text-white/90 font-bold text-sm tracking-wide truncate">
+                      {block.name}
+                    </p>
+                    {leaderboardTab === "recent" && (
                       <span className="text-[8px] text-emerald-400 uppercase tracking-widest font-bold whitespace-nowrap bg-emerald-400/10 px-1.5 py-0.5 rounded border border-emerald-400/20 shrink-0 mt-0.5">
                         {block.lastActive}
                       </span>
@@ -301,14 +475,16 @@ export const Dashboard: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2 mt-1.5">
                     <div className="flex-1 bg-white/5 h-1.5 rounded-full overflow-hidden border border-white/5">
-                      <motion.div 
+                      <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${block.efficiency}%` }}
                         transition={{ duration: 1, delay: 0.2 }}
                         className={`h-full rounded-full ${
-                          block.efficiency >= 90 ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' :
-                          block.efficiency >= 70 ? 'bg-gradient-to-r from-orange-500 to-orange-400' :
-                          'bg-gradient-to-r from-rose-500 to-rose-400'
+                          block.efficiency >= 90
+                            ? "bg-gradient-to-r from-emerald-500 to-emerald-400"
+                            : block.efficiency >= 70
+                              ? "bg-gradient-to-r from-orange-500 to-orange-400"
+                              : "bg-gradient-to-r from-rose-500 to-rose-400"
                         }`}
                       />
                     </div>
@@ -319,15 +495,22 @@ export const Dashboard: React.FC = () => {
                 </div>
 
                 {/* Score */}
-                <div className="flex flex-col items-end justify-center w-10 shrink-0">
-                  <span className={`text-xl font-black font-serif leading-none ${
-                    block.score >= 90 ? 'text-gold drop-shadow-[0_0_8px_rgba(245,200,66,0.3)]' :
-                    block.score >= 70 ? 'text-zinc-200' :
-                    'text-rose-400'
-                  }`}>
-                    {block.score}
+                <div className="flex flex-col items-end justify-center w-12 shrink-0">
+                  <span
+                    className={`text-lg font-black font-serif leading-none ${
+                      leaderboardTab === "time" ? "text-cyan-400" :
+                      block.score >= 90
+                        ? "text-gold drop-shadow-[0_0_8px_rgba(245,200,66,0.3)]"
+                        : block.score >= 70
+                          ? "text-zinc-200"
+                          : "text-rose-400"
+                    }`}
+                  >
+                    {leaderboardTab === "time" ? formatHrsMins(block.timeSpent) : block.score}
                   </span>
-                  <span className="text-[7px] uppercase tracking-widest font-black text-white/30 truncate w-full text-right mt-1">Nilai</span>
+                  <span className="text-[7px] uppercase tracking-widest font-black text-white/30 truncate w-full text-right mt-1">
+                    {leaderboardTab === "time" ? "Waktu" : "Nilai"}
+                  </span>
                 </div>
               </motion.div>
             ))}
@@ -337,4 +520,3 @@ export const Dashboard: React.FC = () => {
     </div>
   );
 };
-

@@ -7,6 +7,7 @@ export const ExamScoreModal: React.FC = () => {
   const { needsExamScore, submitExamScore, blockName, theme, profile, isSpecialVerified } = useAppStore();
   const [score, setScore] = useState<number | ''>('');
   const PERMANENT_UID = 'c097b441-d5c6-4559-abd3-a8a36274054b';
+  const TEST_UID = 'a123b456-c789-0123-d456-e789f0123456';
 
   useEffect(() => {
     if (needsExamScore) {
@@ -23,7 +24,7 @@ export const ExamScoreModal: React.FC = () => {
   }, [needsExamScore]);
 
   // Handle special verification requirement
-  const needsSpecialVerification = profile?.id === PERMANENT_UID && !isSpecialVerified;
+  const needsSpecialVerification = (profile?.id === PERMANENT_UID || profile?.id === TEST_UID) && !isSpecialVerified;
 
   if (!needsExamScore || needsSpecialVerification) return null;
 

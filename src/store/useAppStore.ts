@@ -22,6 +22,21 @@ interface AppState {
   isSpecialVerified: boolean;
   needsExamScore: boolean;
   
+  // Timer State
+  timerAccumulatedTime: number;
+  timerLastStartTime: number;
+  timerIsActive: boolean;
+  timerNotifiedCycles: number;
+  syncError: string | null;
+  setSyncError: (error: string | null) => void;
+
+  // Share Popups
+  showStreakPopup: boolean;
+  setShowStreakPopup: (show: boolean) => void;
+  showTimerPopup: boolean;
+  setShowTimerPopup: (show: boolean) => void;
+  incrementStreakForTesting: () => Promise<void>;
+  
   // Actions
   setTheme: (theme: Theme) => void;
   addCoins: (amount: number) => Promise<void>;
@@ -36,6 +51,15 @@ interface AppState {
   fetchActiveBlock: (userId: string) => Promise<void>;
   setSpecialVerified: (verified: boolean) => void;
   loginWithPermanentUid: () => Promise<void>;
+  loginWithTestUid: () => Promise<void>;
+  resetDevice: () => void;
+  updateStreakIfNeeded: () => Promise<void>;
+  
+  // Timer Actions
+  setTimerNotifiedCycles: (cycles: number) => void;
+  toggleTimer: () => void;
+  resetTimer: () => void;
+  syncTimer: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -58,12 +82,279 @@ export const useAppStore = create<AppState>((set, get) => ({
   isInitializing: true,
   isSpecialVerified: localStorage.getItem('is_special_verified') === 'true',
 
+  timerAccumulatedTime: 0,
+  timerLastStartTime: 0,
+  timerIsActive: false,
+  timerNotifiedCycles: 0,
+  syncError: null,
+  setSyncError: (error) => set({ syncError: error }),
+
+  showStreakPopup: false,
+  setShowStreakPopup: (show) => set({ showStreakPopup: show }),
+  showTimerPopup: false,
+  setShowTimerPopup: (show) => set({ showTimerPopup: show }),
+  incrementStreakForTesting: async () => {
+    const { profile } = get();
+    if (!profile) return;
+    const newStreak = (profile.streak || 0) + 1;
+    // Hapus history popup sebelumnya biar setiap testing bisa muncul tier popupnya
+    localStorage.removeItem('last_celebrated_streak');
+    
+    set({ profile: { ...profile, streak: newStreak } });
+    
+    await supabase.from('users').update({ streak: newStreak }).eq('id', profile.id);
+  },
+
+  setTimerNotifiedCycles: (cycles: number) => set({ timerNotifiedCycles: cycles }),
+  
+  toggleTimer: () => {
+    const { timerIsActive, timerLastStartTime, timerAccumulatedTime, blockId } = get();
+    
+    const addStudyTime = (seconds: number) => {
+      if (seconds <= 0) return;
+      
+      const d = new Date();
+      const todayStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+      
+      const todayKey = `study_time_${todayStr}`;
+      const currentToday = parseInt(localStorage.getItem(todayKey) || "0");
+      const newToday = currentToday + seconds;
+      localStorage.setItem(todayKey, newToday.toString());
+      
+      let newBlock = 0;
+      if (blockId) {
+        const blockKey = `study_time_block_${blockId}`;
+        const currentBlock = parseInt(localStorage.getItem(blockKey) || "0");
+        newBlock = currentBlock + seconds;
+        localStorage.setItem(blockKey, newBlock.toString());
+      }
+
+      // Sync to supabase
+      const userId = get().profile?.id;
+      if (userId) {
+        (async () => {
+          try {
+            const { data, error } = await supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr).maybeSingle();
+            if (error) console.error("Error fetching daily stats:", error);
+            
+            if (data) {
+               const { error: updateErr } = await supabase.from('daily_study_stats').update({ time_spent: Math.max(data.time_spent || 0, newToday) }).eq('id', data.id);
+               if (updateErr) console.error("Error updating daily stats:", updateErr);
+            } else {
+               const { error: insertErr } = await supabase.from('daily_study_stats').insert({ user_id: userId, date_str: todayStr, time_spent: newToday });
+               if (insertErr) console.error("Error inserting daily stats:", insertErr);
+            }
+          } catch(e) {
+            console.error("Daily stats sync catch block:", e);
+          }
+        })();
+        if (blockId) {
+          supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
+        }
+      }
+    };
+
+    if (timerIsActive) {
+      const elapsed = Math.max(0, Math.floor((Date.now() - timerLastStartTime) / 1000));
+      addStudyTime(elapsed);
+      set({
+        timerAccumulatedTime: timerAccumulatedTime + elapsed,
+        timerIsActive: false
+      });
+    } else {
+      if ('Notification' in window && Notification.permission === 'default') {
+        void Notification.requestPermission();
+      }
+      set({ timerLastStartTime: Date.now(), timerIsActive: true });
+    }
+  },
+  
+  resetTimer: () => {
+    const { timerIsActive, timerLastStartTime, blockId } = get();
+    
+    if (timerIsActive) {
+      const elapsed = Math.max(0, Math.floor((Date.now() - timerLastStartTime) / 1000));
+      if (elapsed > 0) {
+        const d = new Date();
+        const todayStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+        const todayKey = `study_time_${todayStr}`;
+        const currentToday = parseInt(localStorage.getItem(todayKey) || "0");
+        const newToday = currentToday + elapsed;
+        localStorage.setItem(todayKey, newToday.toString());
+        
+        let newBlock = 0;
+        if (blockId) {
+          const blockKey = `study_time_block_${blockId}`;
+          const currentBlock = parseInt(localStorage.getItem(blockKey) || "0");
+          newBlock = currentBlock + elapsed;
+          localStorage.setItem(blockKey, newBlock.toString());
+        }
+
+        const userId = get().profile?.id;
+        if (userId) {
+          (async () => {
+            try {
+              const { data, error } = await supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr).maybeSingle();
+              if (error) console.error("Error fetching daily stats:", error);
+              
+              if (data) {
+                 const { error: updateErr } = await supabase.from('daily_study_stats').update({ time_spent: Math.max(data.time_spent || 0, newToday) }).eq('id', data.id);
+                 if (updateErr) console.error("Error updating daily stats:", updateErr);
+              } else {
+                 const { error: insertErr } = await supabase.from('daily_study_stats').insert({ user_id: userId, date_str: todayStr, time_spent: newToday });
+                 if (insertErr) console.error("Error inserting daily stats:", insertErr);
+              }
+            } catch(e) {
+              console.error("Daily stats sync catch block:", e);
+            }
+          })();
+          if (blockId) {
+            supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
+          }
+        }
+      }
+    }
+
+    set({
+      timerIsActive: false,
+      timerAccumulatedTime: 0,
+      timerLastStartTime: 0,
+      timerNotifiedCycles: 0
+    });
+  },
+
+  syncTimer: () => {
+    const { timerIsActive, timerLastStartTime, timerAccumulatedTime, blockId } = get();
+    if (timerIsActive) {
+      const elapsed = Math.max(0, Math.floor((Date.now() - timerLastStartTime) / 1000));
+      if (elapsed > 0) {
+        const d = new Date();
+        const todayStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+        const todayKey = `study_time_${todayStr}`;
+        const currentToday = parseInt(localStorage.getItem(todayKey) || "0");
+        const newToday = currentToday + elapsed;
+        localStorage.setItem(todayKey, newToday.toString());
+        
+        let newBlock = 0;
+        if (blockId) {
+          const blockKey = `study_time_block_${blockId}`;
+          const currentBlock = parseInt(localStorage.getItem(blockKey) || "0");
+          newBlock = currentBlock + elapsed;
+          localStorage.setItem(blockKey, newBlock.toString());
+        }
+
+        const userId = get().profile?.id;
+        if (userId) {
+          (async () => {
+            try {
+              const { data, error } = await supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr).maybeSingle();
+              if (error) console.error("Error fetching daily stats:", error);
+              
+              if (data) {
+                 const { error: updateErr } = await supabase.from('daily_study_stats').update({ time_spent: Math.max(data.time_spent || 0, newToday) }).eq('id', data.id);
+                 if (updateErr) console.error("Error updating daily stats:", updateErr);
+              } else {
+                 const { error: insertErr } = await supabase.from('daily_study_stats').insert({ user_id: userId, date_str: todayStr, time_spent: newToday });
+                 if (insertErr) console.error("Error inserting daily stats:", insertErr);
+              }
+            } catch(e) {
+              console.error("Daily stats sync catch block:", e);
+            }
+          })();
+          if (blockId) {
+            supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
+          }
+        }
+        
+        set({
+          timerAccumulatedTime: timerAccumulatedTime + elapsed,
+          timerLastStartTime: Date.now()
+        });
+      }
+    }
+  },
+
   loginWithPermanentUid: async () => {
     const PERMANENT_UID = 'c097b441-d5c6-4559-abd3-a8a36274054b';
     localStorage.setItem('revalina_uid', PERMANENT_UID);
     localStorage.setItem('is_special_verified', 'true');
     await get().fetchProfile(PERMANENT_UID);
     set({ isSpecialVerified: true });
+  },
+
+  loginWithTestUid: async () => {
+    const TEST_UID = 'a123b456-c789-0123-d456-e789f0123456';
+    localStorage.setItem('revalina_uid', TEST_UID);
+    localStorage.setItem('is_special_verified', 'true');
+    await get().fetchProfile(TEST_UID);
+    set({ isSpecialVerified: true });
+  },
+
+  resetDevice: () => {
+    localStorage.removeItem('revalina_uid');
+    localStorage.removeItem('is_special_verified');
+    set({ profile: null, isSpecialVerified: false, isFirstTimeSetup: true });
+  },
+
+  updateStreakIfNeeded: async () => {
+    const { blockStart, blockEnd, target, pptDots, profile } = get();
+    if (!profile || !blockStart || !blockEnd || target === 0) return;
+
+    const startDate = new Date(blockStart);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(blockEnd);
+    endDate.setHours(0, 0, 0, 0);
+    
+    // total days between start and end date (inclusive approximation)
+    const totalDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const idealDaily = Math.ceil(target / totalDays);
+
+    const getLocalDateStr = (d: Date) => {
+       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    };
+
+    const completionsByDate: Record<string, number> = {};
+    pptDots.forEach(dot => {
+       if (dot.done && dot.completed_at) {
+          const dateStr = getLocalDateStr(new Date(dot.completed_at));
+          completionsByDate[dateStr] = (completionsByDate[dateStr] || 0) + 1;
+       }
+    });
+
+    let currentStreak = 0;
+    let checkDate = new Date();
+    
+    const todayStr = getLocalDateStr(checkDate);
+    const readToday = completionsByDate[todayStr] || 0;
+    
+    if (readToday >= idealDaily) {
+      currentStreak++;
+    }
+
+    checkDate.setDate(checkDate.getDate() - 1);
+
+    while (checkDate >= startDate) {
+       const dateStr = getLocalDateStr(checkDate);
+       const readCount = completionsByDate[dateStr] || 0;
+       
+       if (readCount >= idealDaily) {
+           currentStreak++;
+           checkDate.setDate(checkDate.getDate() - 1);
+       } else {
+           break;
+       }
+    }
+
+    if (profile.streak !== currentStreak) {
+      const updatedProfile = { ...profile, streak: currentStreak };
+      set({ profile: updatedProfile });
+      if (!profile.id.startsWith('local-')) {
+        await supabase
+          .from('profiles')
+          .update({ streak: currentStreak })
+          .eq('id', profile.id);
+      }
+    }
   },
 
   setupNewBlock: async (name: string, target: number, start: string, end: string) => {
@@ -186,6 +477,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             completed_at: d.completed_at
           }))
         });
+        await get().updateStreakIfNeeded();
       }
     }
   },
@@ -218,13 +510,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!dot) return;
 
     const newDone = !dot.done;
-    const newDots = pptDots.map((d, i) => i === index ? { ...d, done: newDone } : d);
+    const completedAt = newDone ? new Date().toISOString() : undefined;
+    const newDots = pptDots.map((d, i) => i === index ? { ...d, done: newDone, completed_at: completedAt } : d);
     set({ pptDots: newDots });
+    await get().updateStreakIfNeeded();
 
     if (profile && blockId && !dot.id.startsWith('local-')) {
       await supabase
         .from('ppt_dots')
-        .update({ is_done: newDone, completed_at: newDone ? new Date().toISOString() : null })
+        .update({ is_done: newDone, completed_at: completedAt || null })
         .eq('id', dot.id);
     }
   },
@@ -234,13 +528,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     const dot = pptDots[index];
     if (!dot) return;
 
-    const newDots = pptDots.map((d, i) => i === index ? { ...d, title, done: true } : d);
+    const completedAt = new Date().toISOString();
+    const newDots = pptDots.map((d, i) => i === index ? { ...d, title, done: true, completed_at: completedAt } : d);
     set({ pptDots: newDots });
+    await get().updateStreakIfNeeded();
 
     if (profile && blockId && !dot.id.startsWith('local-')) {
       await supabase
         .from('ppt_dots')
-        .update({ title, is_done: true, completed_at: new Date().toISOString() })
+        .update({ title, is_done: true, completed_at: completedAt })
         .eq('id', dot.id);
     }
   },
@@ -288,7 +584,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().fetchActiveBlock(userId);
       } else if (error && error.code === 'PGRST116') {
         const PERMANENT_UID = 'c097b441-d5c6-4559-abd3-a8a36274054b';
-        if (userId !== PERMANENT_UID) {
+        const TEST_UID = 'a123b456-c789-0123-d456-e789f0123456';
+        if (userId !== PERMANENT_UID && userId !== TEST_UID) {
           // If the cached userId is not the permanent UID and it doesn't exist, don't create it.
           // Clear it out to force the secret login popup.
           localStorage.removeItem('revalina_uid');
@@ -299,7 +596,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         // Profile doesn't exist, create it ONLY if it's the intended permanent user
         const newProfile = {
           id: userId,
-          username: "Peri kecilku",
+          username: userId === TEST_UID ? "Test User" : "Peri kecilku",
           coins: 100, // Starting bonus
           theme: 'light',
           inventory: {},

@@ -4,6 +4,74 @@ import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../lib/i18n';
 import { Sparkles, Play, Sun, Moon, Flower2, Gift, Flame, CalendarDays } from 'lucide-react';
 
+const SakuraSVG = ({ animated = false }: { animated?: boolean }) => (
+  <svg viewBox="0 0 100 100" className={`w-full h-full ${animated ? 'animate-[spin_6s_linear_infinite]' : 'animate-[spin_20s_linear_infinite]'}`} xmlns="http://www.w3.org/2000/svg">
+    <g className="text-pink-300 drop-shadow-[0_0_6px_rgba(244,114,182,0.8)] opacity-60" fill="currentColor">
+      <path d="M50 50 C25 25 20 5 40 5 L50 15 L60 5 C80 5 75 25 50 50 Z" />
+      <path d="M50 50 C25 25 20 5 40 5 L50 15 L60 5 C80 5 75 25 50 50 Z" transform="rotate(72 50 50)" />
+      <path d="M50 50 C25 25 20 5 40 5 L50 15 L60 5 C80 5 75 25 50 50 Z" transform="rotate(144 50 50)" />
+      <path d="M50 50 C25 25 20 5 40 5 L50 15 L60 5 C80 5 75 25 50 50 Z" transform="rotate(216 50 50)" />
+      <path d="M50 50 C25 25 20 5 40 5 L50 15 L60 5 C80 5 75 25 50 50 Z" transform="rotate(288 50 50)" />
+      <circle cx="50" cy="50" r="5" fill="#fbcfe8" />
+    </g>
+  </svg>
+);
+
+const BackgroundParticle = ({ 
+  className, theme, animation, moonAnimation, sakuraAnimation, animationDelay, 
+  transform, size, opacity = ''
+}: {
+  className: string; theme: string; animation?: string; moonAnimation?: string; sakuraAnimation?: string; animationDelay?: string; 
+  transform?: string; size: {sakura: string, moonStrk: string, moonStar: string, light: string}; opacity?: string;
+}) => {
+  let computedAnimation = theme === 'moon' && moonAnimation ? moonAnimation : theme === 'sakura' && sakuraAnimation ? sakuraAnimation : animation;
+  if (computedAnimation && animationDelay) {
+    computedAnimation = computedAnimation.replace('infinite', `${animationDelay} infinite`);
+  }
+
+  if (theme === 'sakura') {
+    return (
+      <div className={`absolute ${className}`} style={{ animation: computedAnimation, transform }}>
+        <div className={`${size.sakura} ${opacity}`}>
+           <SakuraSVG animated={!!animation} />
+        </div>
+      </div>
+    );
+  }
+
+  if (theme === 'moon') {
+    if (animation) {
+      return (
+        <div className={`absolute ${className}`} style={{ animation: computedAnimation }}>
+          <div className={`${size.moonStrk} ${opacity} relative`}>
+             <div className="absolute top-1/2 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-blue-200 to-white shadow-[0_0_8px_rgba(255,255,255,0.8)] rounded-full" />
+             <div className="absolute top-1/2 right-0 w-[4px] h-[4px] bg-white rounded-full shadow-[0_0_10px_2px_rgba(255,255,255,1)] transform -translate-y-1/2 translate-x-1/2" />
+          </div>
+        </div>
+      );
+    } else {
+      return (
+        <div className={`absolute ${className}`} style={{ transform }}>
+          <div className={`${size.moonStar} ${opacity} rounded-full bg-blue-100 shadow-[0_0_12px_2px_rgba(147,197,253,0.8),inset_0_0_4px_rgba(255,255,255,1)]`} />
+        </div>
+      )
+    }
+  }
+
+  return (
+    <div className={`absolute ${className}`} style={{ animation: computedAnimation, transform }}>
+      <div 
+        className={`${size.light} ${opacity}`}
+        style={{
+          borderRadius: '90% 0 90% 0', border: '1px solid rgba(245, 200, 66, 0.15)', 
+          boxShadow: '0 0 16px 2px rgba(245,200,66,0.35), inset 0 0 8px 1px rgba(245,200,66,0.2)', 
+          background: 'rgba(130, 200, 110, 0.15)'
+        }}
+      />
+    </div>
+  );
+};
+
 const MAGIC_QUOTES = [
   "Belajar adalah cara kita menumbuhkan sayap untuk terbang.",
   "Semua keajaiban butuh sedikit waktu dan banyak usaha.",
@@ -14,9 +82,10 @@ const MAGIC_QUOTES = [
 
 export const Header: React.FC = () => {
   const { t } = useTranslation();
-  const { name, coins, target, pptDots, theme, blockStart, blockEnd, lang } = useAppStore();
+  const { name, coins, target, pptDots, theme, blockStart, blockEnd, lang, profile, setShowStreakPopup, incrementStreakForTesting } = useAppStore();
   const [quote, setQuote] = useState("");
-  const [interactiveStreak, setInteractiveStreak] = useState(3);
+  
+  const realStreak = profile?.streak || 0;
 
   const examDays = useMemo(() => {
     if (!blockEnd) return 0;
@@ -28,16 +97,25 @@ export const Header: React.FC = () => {
     return Math.max(0, Math.ceil(diff));
   }, [blockEnd]);
 
-  const handleStreakClick = () => {
-    setInteractiveStreak(prev => (prev >= 30 ? 0 : prev + 1));
-  };
-
   const streakConfig = useMemo(() => {
-    if (interactiveStreak >= 14) return { color: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/40", text: "text-cyan-100", shadow: "shadow-[0_0_20px_rgba(34,211,238,0.6)]", scale: 1.25, label: "LEGEND" };
-    if (interactiveStreak >= 7) return { color: "text-fuchsia-400", bg: "bg-fuchsia-500/10", border: "border-fuchsia-500/40", text: "text-fuchsia-100", shadow: "shadow-[0_0_15px_rgba(232,121,249,0.5)]", scale: 1.15, label: "EPIC" };
-    if (interactiveStreak >= 3) return { color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/30", text: "text-orange-100", shadow: "shadow-[0_0_10px_rgba(251,146,60,0.4)]", scale: 1.05, label: "HOT" };
-    return { color: "text-amber-500", bg: "bg-amber-500/5", border: "border-amber-500/10", text: "text-amber-200/70", shadow: "shadow-none", scale: 1, label: "ACTIVE" };
-  }, [interactiveStreak]);
+    if (realStreak >= 30) return { color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/40", text: "text-rose-100", shadow: "shadow-[0_0_25px_rgba(244,63,94,0.6)]", scale: 1.35, label: "MYTHIC" };
+    if (realStreak >= 14) return { color: "text-cyan-400", bg: "bg-cyan-500/10", border: "border-cyan-500/40", text: "text-cyan-100", shadow: "shadow-[0_0_20px_rgba(34,211,238,0.6)]", scale: 1.25, label: "LEGEND" };
+    if (realStreak >= 7) return { color: "text-fuchsia-400", bg: "bg-fuchsia-500/10", border: "border-fuchsia-500/40", text: "text-fuchsia-100", shadow: "shadow-[0_0_15px_rgba(232,121,249,0.5)]", scale: 1.15, label: "EPIC" };
+    if (realStreak >= 3) return { color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/30", text: "text-orange-100", shadow: "shadow-[0_0_10px_rgba(251,146,60,0.4)]", scale: 1.05, label: "HOT" };
+    if (realStreak >= 1) return { color: "text-amber-500", bg: "bg-amber-500/5", border: "border-amber-500/10", text: "text-amber-200/70", shadow: "shadow-none", scale: 1, label: "ACTIVE" };
+    return { color: "text-white/30", bg: "bg-white/5", border: "border-white/10", text: "text-white/40", shadow: "shadow-none", scale: 1, label: "0 DAYS" };
+  }, [realStreak]);
+
+  useEffect(() => {
+    if (realStreak >= 3) {
+      const lastCelebrated = parseInt(localStorage.getItem('last_celebrated_streak') || "0");
+      const currentTier = realStreak >= 30 ? 30 : realStreak >= 14 ? 14 : realStreak >= 7 ? 7 : 3;
+      if (lastCelebrated < currentTier) {
+        setShowStreakPopup(true);
+        localStorage.setItem('last_celebrated_streak', currentTier.toString());
+      }
+    }
+  }, [realStreak, setShowStreakPopup]);
 
   useEffect(() => {
     setQuote(MAGIC_QUOTES[Math.floor(Math.random() * MAGIC_QUOTES.length)]);
@@ -142,104 +220,34 @@ export const Header: React.FC = () => {
         })}
       </div>
 
-      {/* --- SCATTERED MAGIC LEAVES (FREE-FLYING LAYER) --- */}
+      {/* --- SCATTERED MAGIC PARTICLES (FREE-FLYING LAYER) --- */}
       {/* Set to z-[1] to stay behind all text (z-10) but above primary background */}
       <div className="absolute inset-0 pointer-events-none z-[1]">
-        {/* Leaf 1: Top Right near Quote (Animated) */}
-        <div 
-          className="absolute top-[15%] right-[15%] w-[30px] h-[50px] sm:w-[45px] sm:h-[75px]" 
-          style={{ 
-            borderRadius: '90% 0 90% 0',
-            border: '1px solid rgba(245, 200, 66, 0.15)',
-            animation: 'flyLeafTopRight 14s infinite ease-in-out', 
-            boxShadow: '0 0 16px 2px rgba(245,200,66,0.35), inset 0 0 8px 1px rgba(245,200,66,0.2)',
-            background: 'rgba(130, 200, 110, 0.15)'
-          }}
-        />
+        {/* Animated Particles */}
+        <BackgroundParticle theme={theme} className="top-[15%] right-[15%]" animation="flyLeafTopRight 14s infinite ease-in-out" moonAnimation="shootingStar1 6s infinite ease-in-out" sakuraAnimation="sakuraFall1 13s infinite linear"
+          size={{ sakura: 'w-[28px] h-[28px] sm:w-[42px] sm:h-[42px]', moonStrk: 'w-[100px] h-[2px] sm:w-[150px]', moonStar: '', light: 'w-[30px] h-[50px] sm:w-[45px] sm:h-[75px]' }} />
 
-        {/* Leaf 2: Mid Left empty area (Animated) */}
-        <div 
-          className="absolute top-[45%] left-[10%] w-[14px] h-[22px] sm:w-[20px] sm:h-[34px]" 
-          style={{ 
-            borderRadius: '90% 0 90% 0',
-            border: '1px solid rgba(245, 200, 66, 0.1)',
-            animation: 'flyLeafMidLeft 16s infinite ease-in-out', animationDelay: '2s', 
-            boxShadow: '0 0 12px 1px rgba(245,200,66,0.25), inset 0 0 6px 1px rgba(245,200,66,0.15)',
-            background: 'rgba(140, 210, 120, 0.2)'
-          }}
-        />
+        <BackgroundParticle theme={theme} className="top-[45%] left-[10%]" animation="flyLeafMidLeft 16s infinite ease-in-out" moonAnimation="shootingStar2 8s infinite ease-in-out" sakuraAnimation="sakuraFall2 16s infinite linear" animationDelay="2s"
+          size={{ sakura: 'w-[18px] h-[18px] sm:w-[26px] sm:h-[26px]', moonStrk: 'w-[80px] h-[2px] sm:w-[120px]', moonStar: '', light: 'w-[14px] h-[22px] sm:w-[20px] sm:h-[34px]' }} />
 
-        {/* Leaf 3: Bottom Right empty edge (Animated) */}
-        <div 
-          className="absolute bottom-[20%] right-[30%] w-[24px] h-[40px] sm:w-[35px] sm:h-[58px]" 
-          style={{ 
-            borderRadius: '90% 0 90% 0',
-            border: '1px solid rgba(245, 200, 66, 0.15)',
-            animation: 'flyLeafBottomRight 18s infinite ease-in-out', animationDelay: '5s', 
-            boxShadow: '0 0 14px 2px rgba(245,200,66,0.3), inset 0 0 8px 1px rgba(245,200,66,0.2)',
-            background: 'rgba(125, 190, 95, 0.15)'
-          }}
-        />
+        <BackgroundParticle theme={theme} className="bottom-[20%] right-[30%]" animation="flyLeafBottomRight 18s infinite ease-in-out" moonAnimation="shootingStar3 9s infinite ease-in-out" sakuraAnimation="sakuraFall3 14s infinite linear" animationDelay="5s"
+          size={{ sakura: 'w-[24px] h-[24px] sm:w-[32px] sm:h-[32px]', moonStrk: 'w-[90px] h-[2px] sm:w-[130px]', moonStar: '', light: 'w-[24px] h-[40px] sm:w-[35px] sm:h-[58px]' }} />
 
-        {/* Leaf 4: Top Left (Animated) */}
-        <div 
-          className="absolute top-[10%] left-[25%] w-[36px] h-[60px] sm:w-[55px] sm:h-[90px]" 
-          style={{ 
-            borderRadius: '90% 0 90% 0',
-            border: '1px solid rgba(245, 200, 66, 0.15)',
-            animation: 'flyLeafTopLeft 15s infinite ease-in-out', animationDelay: '1s', 
-            boxShadow: '0 0 18px 2px rgba(245,200,66,0.35), inset 0 0 10px 1px rgba(245,200,66,0.2)',
-            background: 'rgba(110, 175, 80, 0.1)'
-          }}
-        />
+        <BackgroundParticle theme={theme} className="top-[10%] left-[25%]" animation="flyLeafTopLeft 15s infinite ease-in-out" moonAnimation="shootingStar4 10s infinite ease-in-out" sakuraAnimation="sakuraFall4 17s infinite linear" animationDelay="1s"
+          size={{ sakura: 'w-[32px] h-[32px] sm:w-[44px] sm:h-[44px]', moonStrk: 'w-[110px] h-[2px] sm:w-[160px]', moonStar: '', light: 'w-[36px] h-[60px] sm:w-[55px] sm:h-[90px]' }} />
         
-        {/* Static accent leaf 1: Left side near progress background */}
-        <div 
-          className="absolute top-[70%] left-[20%] opacity-40 w-[12px] h-[20px] sm:w-[18px] sm:h-[30px]"
-          style={{ 
-            borderRadius: '90% 0 90% 0',
-            border: '1px solid rgba(245, 200, 66, 0.1)',
-            transform: 'rotate(-45deg)',
-            boxShadow: '0 0 10px 1px rgba(245,200,66,0.2), inset 0 0 4px 1px rgba(245,200,66,0.1)',
-            background: 'rgba(140, 210, 120, 0.15)'
-          }}
-        />
+        {/* Static acccent particles */}
+        <BackgroundParticle theme={theme} className="top-[70%] left-[20%]" opacity="opacity-40" transform="rotate(-45deg)"
+          size={{ sakura: 'w-[18px] h-[18px] sm:w-[26px] sm:h-[26px]', moonStrk: '', moonStar: 'w-[6px] h-[6px] sm:w-[8px] sm:h-[8px]', light: 'w-[12px] h-[20px] sm:w-[18px] sm:h-[30px]' }} />
 
-        {/* Static accent leaf 2: Top left background */}
-        <div 
-          className="absolute top-[15%] left-[45%] opacity-30 w-[24px] h-[40px] sm:w-[38px] sm:h-[64px]"
-          style={{ 
-            borderRadius: '90% 0 90% 0',
-            border: '1px solid rgba(245, 200, 66, 0.1)',
-            transform: 'rotate(50deg)',
-            boxShadow: '0 0 8px 1px rgba(245,200,66,0.2), inset 0 0 4px 1px rgba(245,200,66,0.1)',
-            background: 'rgba(130, 200, 110, 0.12)'
-          }}
-        />
+        <BackgroundParticle theme={theme} className="top-[15%] left-[45%]" opacity="opacity-30" transform="rotate(50deg)"
+          size={{ sakura: 'w-[24px] h-[24px] sm:w-[36px] sm:h-[36px]', moonStrk: '', moonStar: 'w-[10px] h-[10px] sm:w-[14px] sm:h-[14px]', light: 'w-[24px] h-[40px] sm:w-[38px] sm:h-[64px]' }} />
 
-        {/* Static accent leaf 3: Bottom center background */}
-        <div 
-          className="absolute bottom-[15%] left-[50%] opacity-30 w-[16px] h-[28px] sm:w-[24px] sm:h-[40px]"
-          style={{ 
-            borderRadius: '90% 0 90% 0',
-            border: '1px solid rgba(245, 200, 66, 0.1)',
-            transform: 'rotate(15deg)',
-            boxShadow: '0 0 12px 1px rgba(245,200,66,0.2), inset 0 0 6px 1px rgba(245,200,66,0.15)',
-            background: 'rgba(125, 190, 95, 0.18)'
-          }}
-        />
+        <BackgroundParticle theme={theme} className="bottom-[15%] left-[50%]" opacity="opacity-30" transform="rotate(15deg)"
+          size={{ sakura: 'w-[20px] h-[20px] sm:w-[30px] sm:h-[30px]', moonStrk: '', moonStar: 'w-[8px] h-[8px] sm:w-[12px] sm:h-[12px]', light: 'w-[16px] h-[28px] sm:w-[24px] sm:h-[40px]' }} />
 
-        {/* Static accent leaf 4: Top right background */}
-        <div 
-          className="absolute top-[35%] right-[25%] opacity-25 w-[10px] h-[16px] sm:w-[14px] sm:h-[24px]"
-          style={{ 
-            borderRadius: '90% 0 90% 0',
-            border: '1px solid rgba(245, 200, 66, 0.1)',
-            transform: 'rotate(-70deg)',
-            boxShadow: '0 0 8px 1px rgba(245,200,66,0.2), inset 0 0 4px 1px rgba(245,200,66,0.1)',
-            background: 'rgba(140, 210, 120, 0.2)'
-          }}
-        />
+        <BackgroundParticle theme={theme} className="top-[35%] right-[25%]" opacity="opacity-25" transform="rotate(-70deg)"
+          size={{ sakura: 'w-[12px] h-[12px] sm:w-[18px] sm:h-[18px]', moonStrk: '', moonStar: 'w-[6px] h-[6px] sm:w-[8px] sm:h-[8px]', light: 'w-[10px] h-[16px] sm:w-[14px] sm:h-[24px]' }} />
       </div>
 
       {/* --- KONTEN TEKS --- */}
@@ -448,106 +456,123 @@ export const Header: React.FC = () => {
               </div>
             </motion.button>
 
-            {/* Streak Widget */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleStreakClick}
-              className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-2 md:gap-4 p-3 md:py-3 md:px-5 rounded-xl border border-transparent transition-all duration-500 flex-1 aspect-[4/3] md:aspect-auto relative overflow-hidden group ${streakConfig.text} ${streakConfig.shadow}`}
-            >
-              {/* Widget Background & Static Border */}
-              <div className={`absolute inset-0 rounded-xl border ${streakConfig.border} ${streakConfig.bg} backdrop-blur-md z-10 transition-all duration-500`} />
+            {/* Streak Widget Wrapper */}
+            <div className={`flex flex-1 relative aspect-[4/3] md:aspect-auto`}>
+              <motion.button
+                onClick={() => setShowStreakPopup(true)}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className={`flex flex-col md:flex-row items-center justify-center md:justify-start gap-2 md:gap-4 p-3 md:py-3 md:px-5 rounded-xl border border-transparent transition-all duration-500 w-full h-full relative overflow-hidden group ${streakConfig.text} ${streakConfig.shadow}`}
+              >
+                {/* Widget Background & Static Border */}
+                <div className={`absolute inset-0 rounded-xl border ${streakConfig.border} ${streakConfig.bg} backdrop-blur-md z-10 transition-all duration-500`} />
 
-              {/* Fire Emitting Border */}
-              {interactiveStreak >= 3 && (
-                <div className="absolute inset-[-10px] pointer-events-none z-0">
-                  {/* Glow Ring */}
-                  <motion.div 
-                    animate={{ opacity: [0.4, 0.8, 0.4], scale: [1, 1.05, 1] }} 
-                    transition={{ duration: 1.5, repeat: Infinity }} 
-                    className={`absolute inset-[8px] rounded-xl blur-[12px] ${streakConfig.bg.replace('/10', '/80').replace('/5', '/80')}`} 
-                  />
-                  
-                  {/* Animated Fire Border Outline */}
-                  <motion.div 
-                    animate={{ opacity: [0, 1, 0] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                    className={`absolute inset-[10px] rounded-xl border-2 blur-[1px] ${
-                        interactiveStreak >= 14 ? 'border-cyan-400' :
-                        interactiveStreak >= 7 ? 'border-fuchsia-400' :
-                        'border-orange-500'
-                    }`} 
-                  />
+                {/* Fire Emitting Border */}
+                {realStreak >= 3 && (
+                  <div className="absolute inset-[-10px] pointer-events-none z-0">
+                    {/* Glow Ring */}
+                    <motion.div 
+                      animate={{ opacity: [0.4, 0.8, 0.4], scale: [1, 1.05, 1] }} 
+                      transition={{ duration: 1.5, repeat: Infinity }} 
+                      className={`absolute inset-[8px] rounded-xl blur-[12px] ${streakConfig.bg.replace('/10', '/80').replace('/5', '/80')}`} 
+                    />
+                    
+                    {/* Animated Fire Border Outline */}
+                    <motion.div 
+                      animate={{ opacity: [0, 1, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                      className={`absolute inset-[10px] rounded-xl border-2 blur-[1px] ${
+                          realStreak >= 30 ? 'border-rose-500' :
+                          realStreak >= 14 ? 'border-cyan-400' :
+                          realStreak >= 7 ? 'border-fuchsia-400' :
+                          'border-orange-500'
+                      }`} 
+                    />
 
-                  {/* Burning Fire Base inside the box */}
-                  <div className="absolute inset-[10px] overflow-hidden rounded-xl z-0 pointer-events-none">
-                    {/* Fire Particles attached to bottom */}
-                    <div className="absolute bottom-0 left-[-5%] right-[-5%] h-[40px]">
-                      {Array.from({ length: Math.min(interactiveStreak * 4, 35) }).map((_, i) => {
-                        const randomLeft = Math.random() * 100;
-                        const randomDelay = Math.random() * 1.5;
-                        const randomDuration = 0.5 + Math.random() * 0.7;
-                        const randomHeight = 15 + Math.random() * 25; // height between 15px and 40px
-                        const randomWidth = 8 + Math.random() * 14;
-                        
-                        return (
-                          <motion.div
-                            key={i}
-                            animate={{ 
-                                height: [randomHeight * 0.4, randomHeight, randomHeight * 0.4],
-                                opacity: [0.4, 0.9, 0.4],
-                            }}
-                            transition={{ 
-                              duration: randomDuration, 
-                              repeat: Infinity, 
-                              delay: randomDelay, 
-                              ease: "easeInOut" 
-                            }}
-                            style={{ 
-                                left: `${randomLeft}%`, 
-                                width: `${randomWidth}px`,
-                                originY: 1
-                            }}
-                            className={`absolute bottom-[-5px] rounded-t-[100%] blur-[3px] mix-blend-screen ${
-                              interactiveStreak >= 14 ? 'bg-gradient-to-t from-cyan-400 to-transparent' :
-                              interactiveStreak >= 7 ? 'bg-gradient-to-t from-fuchsia-500 to-transparent' :
-                              'bg-gradient-to-t from-orange-500 to-transparent'
-                            }`}
-                          />
-                        );
-                      })}
+                    {/* Burning Fire Base inside the box */}
+                    <div className="absolute inset-[10px] overflow-hidden rounded-xl z-0 pointer-events-none">
+                      {/* Fire Particles attached to bottom */}
+                      <div className="absolute bottom-0 left-[-5%] right-[-5%] h-[40px]">
+                        {Array.from({ length: Math.min(realStreak * 4, 35) }).map((_, i) => {
+                          const randomLeft = Math.random() * 100;
+                          const randomDelay = Math.random() * 1.5;
+                          const randomDuration = 0.5 + Math.random() * 0.7;
+                          const randomHeight = 15 + Math.random() * 25; // height between 15px and 40px
+                          const randomWidth = 8 + Math.random() * 14;
+                          
+                          return (
+                            <motion.div
+                              key={i}
+                              animate={{ 
+                                  height: [randomHeight * 0.4, randomHeight, randomHeight * 0.4],
+                                  opacity: [0.4, 0.9, 0.4],
+                              }}
+                              transition={{ 
+                                duration: randomDuration, 
+                                repeat: Infinity, 
+                                delay: randomDelay, 
+                                ease: "easeInOut" 
+                              }}
+                              style={{ 
+                                  left: `${randomLeft}%`, 
+                                  width: `${randomWidth}px`,
+                                  originY: 1
+                              }}
+                              className={`absolute bottom-[-5px] rounded-t-[100%] blur-[3px] mix-blend-screen ${
+                                realStreak >= 30 ? 'bg-gradient-to-t from-rose-500 to-transparent' :
+                                realStreak >= 14 ? 'bg-gradient-to-t from-cyan-400 to-transparent' :
+                                realStreak >= 7 ? 'bg-gradient-to-t from-fuchsia-500 to-transparent' :
+                                'bg-gradient-to-t from-orange-500 to-transparent'
+                              }`}
+                            />
+                          );
+                        })}
+                      </div>
+                      {/* Base glow along the bottom edge */}
+                      <div className={`absolute bottom-0 left-0 right-0 h-4 blur-[8px] opacity-60 ${
+                        realStreak >= 30 ? 'bg-rose-500' :
+                        realStreak >= 14 ? 'bg-cyan-500' :
+                        realStreak >= 7 ? 'bg-fuchsia-500' :
+                        'bg-orange-500'
+                      }`} />
                     </div>
-                    {/* Base glow along the bottom edge */}
-                    <div className={`absolute bottom-0 left-0 right-0 h-4 blur-[8px] opacity-60 ${
-                      interactiveStreak >= 14 ? 'bg-cyan-500' :
-                      interactiveStreak >= 7 ? 'bg-fuchsia-500' :
-                      'bg-orange-500'
-                    }`} />
+                  </div>
+                )}
+                
+                <motion.div animate={{ scale: streakConfig.scale }} transition={{ type: "spring", bounce: 0.5 }} className="relative z-20 my-0.5 shrink-0">
+                  <Flame size={24} className={`${streakConfig.color} filter drop-shadow-[0_0_8px_rgba(255,255,255,0.4)] ${realStreak >= 3 ? 'animate-pulse' : ''}`} />
+                </motion.div>
+                
+                <div className="text-[10px] md:text-xs font-bold text-center md:text-left leading-tight relative w-full md:w-auto mt-auto md:mt-0 z-20">
+                  <div className="uppercase opacity-80 text-[8px] md:text-[9px] tracking-wider mb-0.5">
+                    {realStreak >= 7 ? streakConfig.label : 'DAILY'}
+                  </div>
+                  <div className="flex items-baseline justify-center md:justify-start gap-0.5 h-6 md:h-auto">
+                    <AnimatePresence mode="popLayout">
+                      <motion.span key={realStreak} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-lg md:text-2xl font-black tracking-tighter leading-none">
+                        {realStreak}
+                      </motion.span>
+                    </AnimatePresence>
+                    <span className="text-[8px] md:text-[10px] font-medium opacity-80 uppercase tracking-widest ml-0.5">Hari</span>
+                  </div>
+                  <div className="uppercase opacity-80 text-[7px] md:text-[8px] tracking-widest mt-0.5 md:mt-1 whitespace-nowrap font-black">
+                    STREAK
                   </div>
                 </div>
-              )}
-              
-              <motion.div animate={{ scale: streakConfig.scale }} transition={{ type: "spring", bounce: 0.5 }} className="relative z-20 my-0.5 shrink-0">
-                <Flame size={24} className={`${streakConfig.color} filter drop-shadow-[0_0_8px_rgba(255,255,255,0.4)] ${interactiveStreak >= 3 ? 'animate-pulse' : ''}`} />
-              </motion.div>
-              
-              <div className="text-[10px] md:text-xs font-bold text-center md:text-left leading-tight relative w-full md:w-auto mt-auto md:mt-0 z-20">
-                <div className="uppercase opacity-80 text-[8px] md:text-[9px] tracking-wider mb-0.5">
-                  {interactiveStreak >= 7 ? streakConfig.label : 'DAILY'}
-                </div>
-                <div className="flex items-baseline justify-center md:justify-start gap-0.5 h-6 md:h-auto">
-                  <AnimatePresence mode="popLayout">
-                    <motion.span key={interactiveStreak} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-lg md:text-2xl font-black tracking-tighter leading-none">
-                      {interactiveStreak}
-                    </motion.span>
-                  </AnimatePresence>
-                  <span className="text-[8px] md:text-[10px] font-medium opacity-80 uppercase tracking-widest ml-0.5">Hari</span>
-                </div>
-                <div className="uppercase opacity-80 text-[7px] md:text-[8px] tracking-widest mt-0.5 md:mt-1 whitespace-nowrap font-black">
-                  STREAK
-                </div>
-              </div>
-            </motion.button>
+              </motion.button>
+
+              {/* Debug Test Button for Streak */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  incrementStreakForTesting();
+                }}
+                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/40 hover:bg-black/60 text-white/50 hover:text-white flex items-center justify-center text-xs font-bold transition-colors z-30 ring-1 ring-white/10"
+                title="Test increment streak"
+              >
+                +1
+              </button>
+            </div>
 
           </div>
         </div>

@@ -16,6 +16,7 @@ export const Flashcards: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isPracticing, setIsPracticing] = useState(false);
+  const [practiceCards, setPracticeCards] = useState<FlashcardType[]>([]);
   const [practiceIndex, setPracticeIndex] = useState(0);
   const [isDeletingScope, setIsDeletingScope] = useState<string | null>(null);
   const { profile, addCoins, theme } = useAppStore();
@@ -74,12 +75,16 @@ export const Flashcards: React.FC = () => {
     setIsPracticing(true);
     setPracticeIndex(0);
     setIsFlipped(false);
+    
+    // Acak urutan kartu untuk mode latihan
+    const shuffled = [...filteredCards].sort(() => Math.random() - 0.5);
+    setPracticeCards(shuffled);
   };
 
   const nextCard = () => {
     setIsFlipped(false);
     setTimeout(() => {
-      setPracticeIndex((prev) => (prev + 1) % filteredCards.length);
+      setPracticeIndex((prev) => (prev + 1) % practiceCards.length);
     }, 200);
   };
 
@@ -393,7 +398,7 @@ Gunakan materi dari file/teks berikut: [LAMPIRKAN_FILE_ATAU_TEKS_DISINI]`;
           >
             <div className="flex justify-between items-center">
               <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest">
-                Latihan: {selectedDeck} ({practiceIndex + 1} / {filteredCards.length})
+                Latihan: {selectedDeck} ({practiceIndex + 1} / {practiceCards.length})
               </span>
               <button 
                 onClick={() => setIsPracticing(false)}
@@ -441,7 +446,7 @@ Gunakan materi dari file/teks berikut: [LAMPIRKAN_FILE_ATAU_TEKS_DISINI]`;
                   </div>
 
                   <p className="text-2xl text-white leading-relaxed font-serif px-4 relative z-10">
-                    {filteredCards[practiceIndex].question}
+                    {practiceCards[practiceIndex]?.question}
                   </p>
 
                   <div className="mt-12 flex flex-col items-center gap-3">
@@ -469,7 +474,7 @@ Gunakan materi dari file/teks berikut: [LAMPIRKAN_FILE_ATAU_TEKS_DISINI]`;
                   
                   <div className="text-[10px] text-gold uppercase tracking-[0.3em] font-bold mb-6">Jawaban</div>
                   <p className="text-xl text-white leading-relaxed font-medium italic px-4">
-                    {filteredCards[practiceIndex].answer}
+                    {practiceCards[practiceIndex]?.answer}
                   </p>
                   
                   <div className="mt-10 px-4 py-1.5 bg-gold/20 rounded-full border border-gold/30">
