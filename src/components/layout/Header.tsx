@@ -153,7 +153,7 @@ export const Header: React.FC = () => {
   const glowColor = theme === 'moon' ? '#60a5fa' : theme === 'sakura' ? '#fb7185' : '#f5c842'; 
 
   return (
-    <div className="header relative z-10 pt-8 pb-10 min-h-[340px]">
+    <div className="header relative z-10 pt-[calc(2rem+env(safe-area-inset-top))] pb-10 min-h-[340px]">
       {/* BACKGROUND DENGAN EFEK FADE-OUT KE BAWAH */}
       <div 
         className="absolute inset-0 z-[-1] pointer-events-none" 

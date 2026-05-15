@@ -209,7 +209,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-[100dvh] w-full selection:bg-gold/30 relative pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)]">
+    <div className="min-h-screen w-full selection:bg-gold/30 relative pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pb-[calc(110px+env(safe-area-inset-bottom))] md:pb-0">
       <Fairylights />
 
       {/* Fixed background decorations - moved outside transition to stay fixed */}
