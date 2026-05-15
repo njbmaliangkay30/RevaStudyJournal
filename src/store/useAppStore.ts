@@ -62,27 +62,50 @@ interface AppState {
   syncTimer: () => void;
 }
 
-const syncDailyStats = async (userId: string, todayStr: string, newToday: number) => {
+const syncDailyStats = async (userId: string, todayStr: string, newToday: number, blockId: string | null = null) => {
   try {
+    const payload: any = { user_id: userId, date_str: todayStr, time_spent: newToday };
+    if (blockId) {
+      payload.block_id = blockId;
+    }
+    
+    // We try to upsert based on user_id, date_str AND block_id if present
+    const conflictCols = blockId ? 'user_id,date_str,block_id' : 'user_id,date_str';
+
     const { data: upsertData, error: upsertErr } = await supabase.from('daily_study_stats').upsert(
-      { user_id: userId, date_str: todayStr, time_spent: newToday },
-      { onConflict: 'user_id,date_str' }
+      payload,
+      { onConflict: conflictCols }
     );
     if (upsertErr) {
        console.error("Upsert failed, error:", upsertErr);
-       // If upsert fails (e.g. no unique constraint), fallback to select+update
-       const { data, error: selectErr } = await supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr).maybeSingle();
-       if (selectErr) console.error("Select failed, error:", selectErr);
-       
-       if (data) {
+       // Fallback to select+update
+       let query = supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr);
+       if (blockId) {
+         query = query.eq('block_id', blockId);
+       } else {
+         query = query.is('block_id', null);
+       }
+       const { data, error: selectErr } = await query.maybeSingle();
+       if (selectErr) {
+         console.error("Select failed, error:", selectErr);
+         if (selectErr.code === 'PGRST116' || selectErr.message.includes('Multiple rows')) {
+           // We have multiple rows, better to just update one or update all
+           let updateQuery = supabase.from('daily_study_stats').update({ time_spent: newToday }).eq('user_id', userId).eq('date_str', todayStr);
+           if (blockId) updateQuery = updateQuery.eq('block_id', blockId);
+           else updateQuery = updateQuery.is('block_id', null);
+           await updateQuery;
+         }
+       } else if (data) {
          const { error: updateErr } = await supabase.from('daily_study_stats').update({ time_spent: Math.max(data.time_spent || 0, newToday) }).eq('id', data.id);
          if (updateErr) console.error("Update failed, error:", updateErr);
        } else {
-         const { error: insertErr } = await supabase.from('daily_study_stats').insert({ user_id: userId, date_str: todayStr, time_spent: newToday });
+         const { error: insertErr } = await supabase.from('daily_study_stats').insert(payload);
          if (insertErr) {
             console.error("Insert failed, error:", insertErr);
-            const { error: updateFallbackErr } = await supabase.from('daily_study_stats').update({ time_spent: newToday }).eq('user_id', userId).eq('date_str', todayStr);
-            if (updateFallbackErr) console.error("Update fallback failed, error:", updateFallbackErr);
+            let updateQuery = supabase.from('daily_study_stats').update({ time_spent: newToday }).eq('user_id', userId).eq('date_str', todayStr);
+            if (blockId) updateQuery = updateQuery.eq('block_id', blockId);
+            else updateQuery = updateQuery.is('block_id', null);
+            await updateQuery;
          }
        }
     }
@@ -161,8 +184,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Sync to supabase
       const userId = get().profile?.id;
       if (userId) {
-        syncDailyStats(userId, todayStr, newToday);
+        syncDailyStats(userId, todayStr, newToday, null);
         if (blockId) {
+          const blockTodayKey = `study_time_block_today_${blockId}_${todayStr}`;
+          const currentBlockToday = parseInt(localStorage.getItem(blockTodayKey) || "0");
+          const newBlockToday = currentBlockToday + seconds;
+          localStorage.setItem(blockTodayKey, newBlockToday.toString());
+          syncDailyStats(userId, todayStr, newBlockToday, blockId);
+
           supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
         }
       }
@@ -206,8 +235,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         const userId = get().profile?.id;
         if (userId) {
-          syncDailyStats(userId, todayStr, newToday);
+          syncDailyStats(userId, todayStr, newToday, null);
           if (blockId) {
+            const blockTodayKey = `study_time_block_today_${blockId}_${todayStr}`;
+            const currentBlockToday = parseInt(localStorage.getItem(blockTodayKey) || "0");
+            const newBlockToday = currentBlockToday + elapsed;
+            localStorage.setItem(blockTodayKey, newBlockToday.toString());
+            syncDailyStats(userId, todayStr, newBlockToday, blockId);
+
             supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
           }
         }
@@ -227,6 +262,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (timerIsActive) {
       const elapsed = Math.max(0, Math.floor((Date.now() - timerLastStartTime) / 1000));
       if (elapsed > 0) {
+        set({ timerLastStartTime: Date.now(), timerAccumulatedTime: timerAccumulatedTime + elapsed });
         const d = new Date();
         const todayStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
         const todayKey = `study_time_${todayStr}`;
@@ -244,8 +280,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         const userId = get().profile?.id;
         if (userId) {
-          syncDailyStats(userId, todayStr, newToday);
+          syncDailyStats(userId, todayStr, newToday, null);
           if (blockId) {
+            const blockTodayKey = `study_time_block_today_${blockId}_${todayStr}`;
+            const currentBlockToday = parseInt(localStorage.getItem(blockTodayKey) || "0");
+            const newBlockToday = currentBlockToday + elapsed;
+            localStorage.setItem(blockTodayKey, newBlockToday.toString());
+            syncDailyStats(userId, todayStr, newBlockToday, blockId);
+
             supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
           }
         }
@@ -446,6 +488,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         .order('index', { ascending: true });
 
       if (dots && !dotsError) {
+        if (block.time_spent != null) {
+          const localBlock = parseInt(localStorage.getItem(`study_time_block_${block.id}`) || "0");
+          localStorage.setItem(`study_time_block_${block.id}`, Math.max(localBlock, block.time_spent).toString());
+        }
+
         set({
           blockId: block.id,
           blockName: block.name,
@@ -566,6 +613,44 @@ export const useAppStore = create<AppState>((set, get) => ({
         
         // Fetch active block and its progress
         await get().fetchActiveBlock(userId);
+
+        // Fetch daily stats and sync to localStorage
+        const d = new Date();
+        const todayStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+        const y = new Date(d);
+        y.setDate(y.getDate() - 1);
+        const yesterdayStr = y.getFullYear() + "-" + String(y.getMonth() + 1).padStart(2, '0') + "-" + String(y.getDate()).padStart(2, '0');
+
+        let statsData = null;
+        const { data: dataWithBlock, error: errorWithBlock } = await supabase
+          .from('daily_study_stats')
+          .select('date_str, time_spent')
+          .eq('user_id', userId)
+          .is('block_id', null)
+          .in('date_str', [todayStr, yesterdayStr]);
+
+        if (errorWithBlock) {
+          // Fallback if block_id column doesn't exist yet
+          const { data: dataWithoutBlock } = await supabase
+            .from('daily_study_stats')
+            .select('date_str, time_spent')
+            .eq('user_id', userId)
+            .in('date_str', [todayStr, yesterdayStr]);
+          statsData = dataWithoutBlock;
+        } else {
+          statsData = dataWithBlock;
+        }
+
+        if (statsData) {
+          let todayDb = parseInt(localStorage.getItem(`study_time_${todayStr}`) || "0");
+          let yesterdayDb = parseInt(localStorage.getItem(`study_time_${yesterdayStr}`) || "0");
+          statsData.forEach(s => {
+            if (s.date_str === todayStr) todayDb = Math.max(todayDb, s.time_spent || 0);
+            if (s.date_str === yesterdayStr) yesterdayDb = Math.max(yesterdayDb, s.time_spent || 0);
+          });
+          localStorage.setItem(`study_time_${todayStr}`, todayDb.toString());
+          localStorage.setItem(`study_time_${yesterdayStr}`, yesterdayDb.toString());
+        }
       } else if (error && error.code === 'PGRST116') {
         const PERMANENT_UID = 'c097b441-d5c6-4559-abd3-a8a36274054b';
         const TEST_UID = 'a123b456-c789-0123-d456-e789f0123456';

@@ -50,8 +50,8 @@ export const Dashboard: React.FC = () => {
       let yStr = 0;
       if (stats) {
         stats.forEach(s => {
-          if (s.date_str === todayStr) tStr = s.time_spent;
-          if (s.date_str === yesterdayStr) yStr = s.time_spent;
+          if (s.date_str === todayStr) tStr = Math.max(tStr, s.time_spent || 0);
+          if (s.date_str === yesterdayStr) yStr = Math.max(yStr, s.time_spent || 0);
         });
       }
 
@@ -82,7 +82,8 @@ export const Dashboard: React.FC = () => {
               : b.target_slides;
           }
 
-          let totalTime = parseInt(localStorage.getItem(`study_time_block_${b.id}`) || "0");
+          let localTime = parseInt(localStorage.getItem(`study_time_block_${b.id}`) || "0");
+          let totalTime = Math.max(localTime, b.time_spent || 0);
           if (b.id === blockId && timerIsActive && timerLastStartTime > 0) {
             totalTime += Math.max(0, Math.floor((Date.now() - timerLastStartTime) / 1000));
           }

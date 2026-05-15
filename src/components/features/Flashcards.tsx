@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../../lib/supabase';
 import { Flashcard as FlashcardType } from '../../types';
@@ -12,6 +13,7 @@ export const Flashcards: React.FC = () => {
   const [isBulk, setIsBulk] = useState(false);
   const [newCard, setNewCard] = useState({ question: '', answer: '', deck: '' });
   const [bulkText, setBulkText] = useState('');
+  const [bulkTopic, setBulkTopic] = useState('');
   const [selectedDeck, setSelectedDeck] = useState<string>('Semua');
   const [isLoading, setIsLoading] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -153,28 +155,30 @@ export const Flashcards: React.FC = () => {
     e.preventDefault();
     if (!bulkText.trim()) return;
 
-    const currentDeck = newCard.deck || 'Umum';
     setIsLoading(true);
     try {
-      const lines = bulkText.split('\n').filter(line => line.includes('|'));
-      if (lines.length === 0) {
-        alert("Format tidak valid. Gunakan format: Pertanyaan | Jawaban");
-        setIsLoading(false);
-        return;
+      let parsedText = bulkText;
+      if (parsedText.includes('```json')) {
+        parsedText = parsedText.split('```json')[1].split('```')[0];
+      } else if (parsedText.includes('```')) {
+        parsedText = parsedText.split('```')[1].split('```')[0];
+      }
+      
+      const jsonArr = JSON.parse(parsedText.trim());
+      
+      if (!Array.isArray(jsonArr)) {
+        throw new Error("Data bukan berupa array");
       }
 
-      const newCards = lines.map(line => {
-        const [question, answer] = line.split('|').map(s => s.trim());
-        return {
-          id: crypto.randomUUID(),
-          user_id: profile?.id || 'guest',
-          question,
-          answer,
-          deck: currentDeck,
-          is_difficult: false,
-          created_at: new Date().toISOString()
-        };
-      });
+      const newCards = jsonArr.map((item: any) => ({
+        id: crypto.randomUUID(),
+        user_id: profile?.id || 'guest',
+        question: item.front,
+        answer: item.back,
+        deck: bulkTopic.trim() || item.topic || newCard.deck || 'Umum',
+        is_difficult: false,
+        created_at: new Date().toISOString()
+      }));
 
       if (profile?.id) {
         const { data, error } = await supabase
@@ -193,23 +197,69 @@ export const Flashcards: React.FC = () => {
       }
 
       setBulkText('');
-      setNewCard(prev => ({ ...prev, deck: currentDeck }));
+      setBulkTopic('');
       setIsAdding(false);
       addCoins(newCards.length * 2);
     } catch (err: any) {
-      console.error('Bulk Add Error:', err);
-      alert("Terjadi kesalahan saat memproses bulk mode.");
+      console.error('JSON Parse Error:', err);
+      alert("Format JSON tidak valid. Pastikan AI menghasilkan array JSON yang murni, atau periksa kembali input Anda.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const aiPrompt = `Halo Gemini! Tolong buatkan daftar Flashcard untuk materi ini. 
-Format output harus tepat seperti ini (jangan ada teks lain):
-Pertanyaan 1 | Jawaban 1
-Pertanyaan 2 | Jawaban 2
+  const aiPrompt = `Kamu adalah generator flashcard akademis presisi tinggi untuk materi kedokteran/kesehatan.
 
-Gunakan materi dari file/teks berikut: [LAMPIRKAN_FILE_ATAU_TEKS_DISINI]`;
+---
+
+## INSTRUKSI PEMROSESAN MATERI
+
+Sebelum membuat flashcard, lakukan ekstraksi konten berikut:
+1. Baca SELURUH materi secara menyeluruh, termasuk tabel, diagram, dan keterangan gambar
+2. Identifikasi konsep ESENSIAL: mekanisme, kriteria diagnostik, klasifikasi, nilai ambang klinis, komplikasi, dan prinsip tatalaksana
+3. ABAIKAN: judul slide, nama pengajar/institusi, referensi literatur, angka epidemiologi global yang tidak klinis, dan kalimat dekoratif tanpa konten konseptual
+
+---
+
+## STANDAR KUALITAS FLASHCARD
+
+Setiap flashcard HARUS memenuhi minimal satu dari kriteria ini:
+- Menguji nilai/angka klinis spesifik (threshold diagnostik, dosis, durasi)
+- Menguji mekanisme: "Mengapa / Bagaimana X terjadi?"
+- Menguji pembeda antara dua konsep yang sering dikacaukan
+- Menguji implikasi klinis langsung dari suatu kondisi
+
+DILARANG membuat flashcard yang:
+- Hanya menguji nama istilah tanpa substansi (contoh: "Apa kepanjangan dari HELLP?" — tidak berguna)
+- Jawabannya bisa ditebak tanpa membaca materi
+- Menguji fakta yang tidak berdampak pada pemahaman klinis
+
+---
+
+## TARGET
+
+Buat 20–30 flashcard, proporsional terhadap jumlah topik dalam materi.
+
+---
+
+## FORMAT OUTPUT
+
+Output HANYA berupa array JSON valid. Tidak ada teks, komentar, atau markdown di luar JSON.
+
+[
+  {
+    "front": "Pertanyaan atau stem yang menguji satu konsep spesifik",
+    "back": "Jawaban ringkas, presisi, dan lengkap. Boleh berupa poin jika jawaban memiliki beberapa komponen.",
+    "topic": "Nama sub-topik spesifik",
+    "type": "definition / mechanism / comparison / threshold / complication / management"
+  }
+]
+
+---
+
+## MATERI:
+
+[TEMPEL TEKS / KONTEN FILE DI SINI]`;
 
   const deleteCard = async (id: string) => {
     if (!profile?.id) {
@@ -349,43 +399,46 @@ Gunakan materi dari file/teks berikut: [LAMPIRKAN_FILE_ATAU_TEKS_DISINI]`;
         )}
       </div>
 
-      <AnimatePresence>
-        {isDeletingScope && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-card max-w-sm w-full p-6 text-center space-y-4"
-            >
-              <div className="w-16 h-16 bg-rose-500/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-2">
-                <Trash2 size={32} />
-              </div>
-              <h3 className="text-xl font-serif text-white">
-                {isDeletingScope === 'Semua' ? 'Hapus Semua Kartu?' : `Hapus Folder "${isDeletingScope}"?`}
-              </h3>
-              <p className="text-sm text-white/60">
-                Tindakan ini akan menghapus permanen kartu-kartu Anda. Anda tidak dapat mengembalikannya.
-              </p>
-              <div className="flex gap-3 pt-2">
-                <button 
-                  onClick={() => setIsDeletingScope(null)}
-                  className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-white font-bold text-xs uppercase"
-                >
-                  Batal
-                </button>
-                <button 
-                  onClick={handleDeleteDeck}
-                  disabled={isLoading}
-                  className="flex-1 px-4 py-3 rounded-xl bg-rose-600 text-white font-bold text-xs uppercase shadow-lg shadow-rose-600/20 disabled:opacity-50"
-                >
-                  {isLoading ? 'Memproses...' : 'Ya, Hapus'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
+          {isDeletingScope && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="glass-card max-w-sm w-full p-6 text-center space-y-4"
+              >
+                <div className="w-16 h-16 bg-rose-500/20 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Trash2 size={32} />
+                </div>
+                <h3 className="text-xl font-serif text-white">
+                  {isDeletingScope === 'Semua' ? 'Hapus Semua Kartu?' : `Hapus Folder "${isDeletingScope}"?`}
+                </h3>
+                <p className="text-sm text-white/60">
+                  Tindakan ini akan menghapus permanen kartu-kartu Anda. Anda tidak dapat mengembalikannya.
+                </p>
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    onClick={() => setIsDeletingScope(null)}
+                    className="flex-1 px-4 py-3 rounded-xl border border-white/10 text-white font-bold text-xs uppercase"
+                  >
+                    Batal
+                  </button>
+                  <button 
+                    onClick={handleDeleteDeck}
+                    disabled={isLoading}
+                    className="flex-1 px-4 py-3 rounded-xl bg-rose-600 text-white font-bold text-xs uppercase shadow-lg shadow-rose-600/20 disabled:opacity-50"
+                  >
+                    {isLoading ? 'Memproses...' : 'Ya, Hapus'}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
       <AnimatePresence mode="wait">
         {isPracticing ? (
@@ -567,10 +620,11 @@ Gunakan materi dari file/teks berikut: [LAMPIRKAN_FILE_ATAU_TEKS_DISINI]`;
                     ) : (
                       <form onSubmit={handleBulkAdd} className="space-y-4">
                         <input 
-                          placeholder="Nama Folder/PPT (contoh: Biologi Sel)"
-                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:border-gold outline-none transition-all"
-                          value={newCard.deck}
-                          onChange={e => setNewCard({...newCard, deck: e.target.value})}
+                          type="text"
+                          placeholder="Nama Topik (Opsional, menimpa topik dari AI)"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-gold outline-none transition-all"
+                          value={bulkTopic}
+                          onChange={e => setBulkTopic(e.target.value)}
                         />
                         <div className="bg-gold/5 border border-gold/10 rounded-2xl p-4 mb-4">
                     <div className="flex items-start gap-3">
@@ -580,7 +634,7 @@ Gunakan materi dari file/teks berikut: [LAMPIRKAN_FILE_ATAU_TEKS_DISINI]`;
                       <div>
                         <p className="text-xs font-bold text-gold/80 uppercase tracking-wider mb-1">Tips AI Magic</p>
                         <p className="text-[10px] text-white/50 leading-relaxed">
-                          Copy prompt ini ke Gemini/ChatGPT, lalu paste hasilnya di bawah.
+                          Copy prompt ini ke Gemini/ChatGPT, lampirkan materi, lalu paste hasilnya (JSON) di bawah.
                         </p>
                         <button 
                           type="button"
@@ -597,7 +651,7 @@ Gunakan materi dari file/teks berikut: [LAMPIRKAN_FILE_ATAU_TEKS_DISINI]`;
                   </div>
 
                   <textarea 
-                    placeholder="Pertanyaan 1 | Jawaban 1&#10;Pertanyaan 2 | Jawaban 2"
+                    placeholder="Paste JSON flashcard dari AI di sini..."
                     className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/20 focus:border-gold outline-none transition-all h-48 font-mono text-xs leading-relaxed"
                     value={bulkText}
                     onChange={e => setBulkText(e.target.value)}

@@ -39,6 +39,17 @@ export interface Flashcard {
   created_at: string;
 }
 
+export interface Quiz {
+  id: string;
+  user_id?: string;
+  question: string;
+  options: string[];
+  answerIndex: number;
+  explanation: string;
+  topic: string;
+  created_at: string;
+}
+
 export interface GachaItem {
   id: string;
   name: string;

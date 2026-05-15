@@ -10,7 +10,7 @@ import { Dashboard } from "./components/features/Dashboard";
 import { PPTTracker } from "./components/features/PPTTracker";
 import { PomodoroTimer } from "./components/features/PomodoroTimer";
 import { Flashcards } from "./components/features/Flashcards";
-import { MemoryGame } from "./components/features/MemoryGame";
+import { Quizzes } from "./components/features/Quizzes";
 import { FloatingTimer } from "./components/features/FloatingTimer";
 import { SecretLoginModal } from "./components/modals/SecretLoginModal";
 import { BlockSetupModal } from "./components/modals/BlockSetupModal";
@@ -97,24 +97,10 @@ export default function App() {
         );
       case "timer":
         return <PomodoroTimer />;
-      case "gacha":
+      case "quiz":
         return (
           <div className="space-y-12">
-            <MemoryGame />
-            <div className="flex flex-col items-center justify-center p-12 text-center glass-card mt-6">
-              <div className="w-32 h-32 bg-gold/10 rounded-full border border-gold/30 flex items-center justify-center text-4xl mb-4 shadow-[0_0_30px_rgba(245,200,66,0.1)]">
-                🔮
-              </div>
-              <h2 className="font-serif text-2xl text-white">
-                Revalina Journal Gacha
-              </h2>
-              <p className="text-white/40 text-sm mt-2 mb-6">
-                Gunakan 50 Sparkles untuk menarik hadiah langka!
-              </p>
-              <button className="bg-gold text-green-deep font-bold px-8 py-3 rounded-full shadow-[0_5px_15px_rgba(245,200,66,0.3)] hover:scale-105 active:scale-95 transition-all">
-                Tarik Hadiah
-              </button>
-            </div>
+            <Quizzes />
           </div>
         );
       case "settings":

@@ -82,7 +82,7 @@ const MAGIC_QUOTES = [
 
 export const Header: React.FC = () => {
   const { t } = useTranslation();
-  const { name, coins, target, pptDots, theme, blockStart, blockEnd, lang, profile, setShowStreakPopup, incrementStreakForTesting } = useAppStore();
+  const { name, coins, target, pptDots, theme, blockStart, blockEnd, lang, profile, setShowStreakPopup } = useAppStore();
   const [quote, setQuote] = useState("");
   
   const realStreak = profile?.streak || 0;
@@ -560,18 +560,6 @@ export const Header: React.FC = () => {
                   </div>
                 </div>
               </motion.button>
-
-              {/* Debug Test Button for Streak */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  incrementStreakForTesting();
-                }}
-                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/40 hover:bg-black/60 text-white/50 hover:text-white flex items-center justify-center text-xs font-bold transition-colors z-30 ring-1 ring-white/10"
-                title="Test increment streak"
-              >
-                +1
-              </button>
             </div>
 
           </div>

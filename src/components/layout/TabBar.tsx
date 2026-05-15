@@ -37,7 +37,7 @@ export const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange }) => {
     { id: "dashboard", icon: Home, label: "Beranda" },
     { id: "tracker", icon: BookOpen, label: "Belajar" },
     { id: "timer", icon: Timer, label: "Fokus" },
-    { id: "gacha", icon: Sparkle, label: "Ajaib" },
+    { id: "quiz", icon: Sparkle, label: "Latihan" },
     { id: "settings", icon: Settings, label: "Menu" },
   ];
 
