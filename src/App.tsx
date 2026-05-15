@@ -46,6 +46,40 @@ export default function App() {
 
   const [greeting] = useState(getTimeGreeting());
 
+  // Swipe handling
+  const [touchStart, setTouchStart] = useState<{x: number, y: number} | null>(null);
+  const [touchEnd, setTouchEnd] = useState<{x: number, y: number} | null>(null);
+
+  const minSwipeDistance = 50;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd({ x: e.targetTouches[0].clientX, y: e.targetTouches[0].clientY });
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const xDistance = touchStart.x - touchEnd.x;
+    const yDistance = Math.abs(touchStart.y - touchEnd.y);
+    
+    // Only trigger if horizontal swipe is clearly dominant
+    if (Math.abs(xDistance) > yDistance && Math.abs(xDistance) > minSwipeDistance) {
+      const TABS = ["dashboard", "tracker", "timer", "quiz", "settings"];
+      const currentIndex = TABS.indexOf(activeTab);
+      const isLeftSwipe = xDistance > 0;
+      
+      if (isLeftSwipe && currentIndex < TABS.length - 1) {
+        setActiveTab(TABS[currentIndex + 1]);
+      } else if (!isLeftSwipe && currentIndex > 0) {
+        setActiveTab(TABS[currentIndex - 1]);
+      }
+    }
+  };
+
   useEffect(() => {
     const initAuth = async () => {
       const startTime = Date.now();
@@ -209,7 +243,12 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen w-full selection:bg-gold/30 relative pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pb-[calc(110px+env(safe-area-inset-bottom))] md:pb-0">
+    <div 
+      className="min-h-screen w-full selection:bg-gold/30 relative pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pb-[calc(110px+env(safe-area-inset-bottom))] md:pb-0"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       <Fairylights />
 
       {/* Fixed background decorations - moved outside transition to stay fixed */}

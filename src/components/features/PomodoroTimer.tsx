@@ -125,11 +125,11 @@ export const PomodoroTimer: React.FC = () => {
     if (isActive) {
       document.title = `${formatTime(totalElapsed)} - Timer Fokus`;
     } else {
-      document.title = blockName ? `Rebahan AI - ${blockName}` : "Rebahan AI";
+      document.title = totalElapsed > 0 ? (blockName ? `Pause - ${blockName}` : "Pause - Revalina Study Journal") : "Revalina Study Journal";
     }
 
     return () => {
-      document.title = "Rebahan AI";
+      document.title = "Revalina Study Journal";
     };
   }, [isActive, totalElapsed, blockName]);
 
