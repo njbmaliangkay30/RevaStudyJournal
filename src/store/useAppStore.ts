@@ -99,6 +99,16 @@ const syncDailyStats = async (userId: string, todayStr: string, newToday: number
 
 const updateAppThemeColor = (theme: Theme) => {
   document.documentElement.setAttribute('data-theme', theme);
+  const metaThemeColor = document.querySelector("meta[name=theme-color]");
+  let color = "#102307";
+  if (theme === 'sakura') color = "#2d0a1a";
+  else if (theme === 'moon') color = "#0a0e1a";
+  
+  if (metaThemeColor) {
+    metaThemeColor.setAttribute("content", color);
+  }
+  document.documentElement.style.backgroundColor = color;
+  document.body.style.backgroundColor = color;
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
