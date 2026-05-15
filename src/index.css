@@ -61,6 +61,33 @@
     min-height: 100vh;
     min-height: 100dvh;
   }
+
+  /* Elegant scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+    border: none;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 20px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+    opacity: 0.8;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent) transparent;
+  }
 }
 
 @keyframes fairyDrift {
