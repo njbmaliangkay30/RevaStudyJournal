@@ -109,6 +109,21 @@ const updateAppThemeColor = (theme: Theme) => {
   }
   document.documentElement.style.backgroundColor = color;
   document.body.style.backgroundColor = color;
+
+  // Dynamic Favicon
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="115" fill="${color}" />
+  <text x="256" y="380" font-family="'Times New Roman', serif" font-size="340" font-style="italic" fill="#FDE047" text-anchor="middle">R</text>
+  <path d="M256,100 C270,150 290,170 340,184 C290,198 270,218 256,268 C242,218 222,198 172,184 C222,170 242,150 256,100 Z" fill="none" stroke="#FDE047" stroke-width="20" stroke-linejoin="round"/>
+</svg>`;
+  const encoded = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'icon';
+    document.head.appendChild(link);
+  }
+  link.href = encoded;
 };
 
 export const useAppStore = create<AppState>((set, get) => ({

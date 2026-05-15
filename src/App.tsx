@@ -24,7 +24,21 @@ import { useAppStore } from "./store/useAppStore";
 import { cn } from "./lib/utils";
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const TABS = ["dashboard", "tracker", "timer", "quiz", "settings"];
+  const [activeTab, _setActiveTab] = useState("dashboard");
+  const [slideDirection, setSlideDirection] = useState(1);
+
+  const setActiveTab = (newTab: string) => {
+    const currentIndex = TABS.indexOf(activeTab);
+    const newIndex = TABS.indexOf(newTab);
+    if (newIndex > currentIndex) {
+      setSlideDirection(1);
+    } else if (newIndex < currentIndex) {
+      setSlideDirection(-1);
+    }
+    _setActiveTab(newTab);
+  };
+
   const [isFinishingLoading, setIsFinishingLoading] = useState(false);
   const {
     theme,
@@ -68,7 +82,6 @@ export default function App() {
     
     // Only trigger if horizontal swipe is clearly dominant
     if (Math.abs(xDistance) > yDistance && Math.abs(xDistance) > minSwipeDistance) {
-      const TABS = ["dashboard", "tracker", "timer", "quiz", "settings"];
       const currentIndex = TABS.indexOf(activeTab);
       const isLeftSwipe = xDistance > 0;
       
@@ -115,6 +128,40 @@ export default function App() {
     const interval = setInterval(() => {
       checkExamDay();
     }, 60000); // Check every minute just in case
+
+    // Generate static Apple Touch Icon for Mobile (Sakura Pink)
+    const generateAppleTouchIcon = () => {
+      const sakuraColor = "#2d0a1a";
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="115" fill="${sakuraColor}" />
+        <text x="256" y="380" font-family="'Times New Roman', serif" font-size="340" font-style="italic" fill="#FDE047" text-anchor="middle">R</text>
+        <path d="M256,100 C270,150 290,170 340,184 C290,198 270,218 256,268 C242,218 222,198 172,184 C222,170 242,150 256,100 Z" fill="none" stroke="#FDE047" stroke-width="20" stroke-linejoin="round"/>
+      </svg>`;
+      
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          const pngUrl = canvas.toDataURL("image/png");
+          
+          let link = document.querySelector("link[rel='apple-touch-icon']") as HTMLLinkElement;
+          if (!link) {
+            link = document.createElement("link");
+            link.rel = "apple-touch-icon";
+            document.head.appendChild(link);
+          }
+          link.href = pngUrl;
+        }
+      };
+      // For cross browser compatibility of rendering SVGs to image
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    };
+    generateAppleTouchIcon();
+
     return () => clearInterval(interval);
   }, [checkExamDay]);
 
@@ -275,12 +322,29 @@ export default function App() {
 
             <div className="w-full max-w-md md:max-w-3xl lg:max-w-4xl xl:max-w-5xl relative z-10 transition-all duration-300">
               <main className="px-4 md:px-6 lg:px-8 mt-4 lg:mt-8 relative z-10 pb-8">
-                <AnimatePresence mode="wait">
+                <AnimatePresence mode="wait" custom={slideDirection}>
                   <motion.div
                     key={activeTab}
-                    initial={{ opacity: 0, scale: 0.98, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 1.02, y: -10 }}
+                    custom={slideDirection}
+                    variants={{
+                      enter: (direction: number) => ({
+                        opacity: 0,
+                        x: direction > 0 ? 50 : -50,
+                      }),
+                      center: {
+                        z: 1,
+                        x: 0,
+                        opacity: 1,
+                      },
+                      exit: (direction: number) => ({
+                        zIndex: 0,
+                        opacity: 0,
+                        x: direction < 0 ? 50 : -50,
+                      }),
+                    }}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
                     transition={{ duration: 0.3, ease: "easeOut" }}
                   >
                     {renderContent()}
