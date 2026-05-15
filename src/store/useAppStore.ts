@@ -62,52 +62,35 @@ interface AppState {
   syncTimer: () => void;
 }
 
+// Throttle syncs globally
+let lastSyncMap: Record<string, number> = {};
+
 const syncDailyStats = async (userId: string, todayStr: string, newToday: number, blockId: string | null = null) => {
   try {
-    const payload: any = { user_id: userId, date_str: todayStr, time_spent: newToday };
-    if (blockId) {
-      payload.block_id = blockId;
+    const throttleKey = `daily_${userId}_${todayStr}_${blockId || 'null'}`;
+    const now = Date.now();
+    // Only send DB request every 15 seconds or if it's the first time
+    if (lastSyncMap[throttleKey] && now - lastSyncMap[throttleKey] < 15000) {
+      return;
     }
-    
-    // We try to upsert based on user_id, date_str AND block_id if present
-    const conflictCols = blockId ? 'user_id,date_str,block_id' : 'user_id,date_str';
+    lastSyncMap[throttleKey] = now;
 
-    const { data: upsertData, error: upsertErr } = await supabase.from('daily_study_stats').upsert(
-      payload,
-      { onConflict: conflictCols }
-    );
-    if (upsertErr) {
-       console.error("Upsert failed, error:", upsertErr);
-       // Fallback to select+update
-       let query = supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr);
-       if (blockId) {
-         query = query.eq('block_id', blockId);
-       } else {
-         query = query.is('block_id', null);
-       }
-       const { data, error: selectErr } = await query.maybeSingle();
-       if (selectErr) {
-         console.error("Select failed, error:", selectErr);
-         if (selectErr.code === 'PGRST116' || selectErr.message.includes('Multiple rows')) {
-           // We have multiple rows, better to just update one or update all
-           let updateQuery = supabase.from('daily_study_stats').update({ time_spent: newToday }).eq('user_id', userId).eq('date_str', todayStr);
-           if (blockId) updateQuery = updateQuery.eq('block_id', blockId);
-           else updateQuery = updateQuery.is('block_id', null);
-           await updateQuery;
-         }
-       } else if (data) {
-         const { error: updateErr } = await supabase.from('daily_study_stats').update({ time_spent: Math.max(data.time_spent || 0, newToday) }).eq('id', data.id);
-         if (updateErr) console.error("Update failed, error:", updateErr);
-       } else {
-         const { error: insertErr } = await supabase.from('daily_study_stats').insert(payload);
-         if (insertErr) {
-            console.error("Insert failed, error:", insertErr);
-            let updateQuery = supabase.from('daily_study_stats').update({ time_spent: newToday }).eq('user_id', userId).eq('date_str', todayStr);
-            if (blockId) updateQuery = updateQuery.eq('block_id', blockId);
-            else updateQuery = updateQuery.is('block_id', null);
-            await updateQuery;
-         }
-       }
+    let query = supabase.from('daily_study_stats').select('id, time_spent').eq('user_id', userId).eq('date_str', todayStr);
+    if (blockId) {
+      query = query.eq('block_id', blockId);
+    } else {
+      query = query.is('block_id', null);
+    }
+    const { data: existingData, error: selectErr } = await query.maybeSingle();
+
+    if (existingData) {
+      if (newToday > (existingData.time_spent || 0)) {
+        await supabase.from('daily_study_stats').update({ time_spent: newToday }).eq('id', existingData.id);
+      }
+    } else if (!selectErr || selectErr.code === 'PGRST116') {
+      const payload: any = { user_id: userId, date_str: todayStr, time_spent: newToday };
+      if (blockId) payload.block_id = blockId;
+      await supabase.from('daily_study_stats').insert(payload);
     }
   } catch (e) {
     console.error("Daily stats sync error:", e);
@@ -206,7 +189,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           localStorage.setItem(blockTodayKey, newBlockToday.toString());
           syncDailyStats(currentProfileId, todayStr, newBlockToday, blockId);
 
-          supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
+          const blockThrottleKey = `block_${blockId}`; const bNow = Date.now(); if (!lastSyncMap[blockThrottleKey] || bNow - lastSyncMap[blockThrottleKey] >= 15000) { lastSyncMap[blockThrottleKey] = bNow; supabase.from('study_blocks').select('time_spent').eq('id', blockId).single().then(({ data }) => { if (!data || newBlock > (data.time_spent || 0)) supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then(); }); }
         }
       }
     };
@@ -637,25 +620,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         y.setDate(y.getDate() - 1);
         const yesterdayStr = y.getFullYear() + "-" + String(y.getMonth() + 1).padStart(2, '0') + "-" + String(y.getDate()).padStart(2, '0');
 
-        let statsData = null;
-        const { data: dataWithBlock, error: errorWithBlock } = await supabase
+        const { data: statsData, error: statsError } = await supabase
           .from('daily_study_stats')
           .select('date_str, time_spent')
           .eq('user_id', userId)
-          .is('block_id', null)
           .in('date_str', [todayStr, yesterdayStr]);
-
-        if (errorWithBlock) {
-          // Fallback if block_id column doesn't exist yet
-          const { data: dataWithoutBlock } = await supabase
-            .from('daily_study_stats')
-            .select('date_str, time_spent')
-            .eq('user_id', userId)
-            .in('date_str', [todayStr, yesterdayStr]);
-          statsData = dataWithoutBlock;
-        } else {
-          statsData = dataWithBlock;
-        }
 
         if (statsData) {
           let todayDb = parseInt(localStorage.getItem(`study_time_${userId}_${todayStr}`) || "0");
