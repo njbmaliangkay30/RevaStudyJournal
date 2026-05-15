@@ -107,7 +107,6 @@ const updateAppThemeColor = (theme: Theme) => {
   if (metaThemeColor) {
     metaThemeColor.setAttribute("content", color);
   }
-  document.documentElement.style.backgroundColor = color;
 };
 
 export const useAppStore = create<AppState>((set, get) => ({

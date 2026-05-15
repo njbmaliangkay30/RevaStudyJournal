@@ -44,7 +44,7 @@ export const TabBar: React.FC<TabBarProps> = ({ activeTab, onTabChange }) => {
   return (
     <>
       {/* Mobile Bottom Bar (hidden on desktop) */}
-      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100vw-32px)] max-w-[380px] z-50 pointer-events-none md:hidden">
+      <nav className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 w-[calc(100vw-32px)] max-w-[380px] z-50 pointer-events-none md:hidden">
         <div className="pointer-events-auto bg-black/40 backdrop-blur-xl border border-white/10 shadow-lg rounded-[2rem] flex items-center justify-between px-2 py-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
