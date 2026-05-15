@@ -209,7 +209,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen w-full selection:bg-gold/30 relative pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pb-[calc(110px+env(safe-area-inset-bottom))] md:pb-0">
+    <div className="min-h-[100%] w-full selection:bg-gold/30 relative pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
       <Fairylights />
 
       {/* Fixed background decorations - moved outside transition to stay fixed */}
@@ -221,13 +221,13 @@ export default function App() {
       {/* App Content */}
       <div
         className={cn(
-          "min-h-screen transition-all duration-1000 relative z-10",
+          "min-h-[100%] transition-all duration-1000 relative z-10",
           !isFinishingLoading || isInitializing
             ? "opacity-0 blur-2xl scale-105 pointer-events-none"
             : "opacity-100 blur-0 scale-100",
         )}
       >
-        <div className="flex min-h-screen">
+        <div className="flex min-h-[100%]">
           <div className="hidden md:block w-[72px] shrink-0" />
           <div className="flex-1 flex flex-col items-center pb-32 md:pb-12 overflow-x-clip w-full">
             <div className="w-full relative z-10 transition-all duration-300">

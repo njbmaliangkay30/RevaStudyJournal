@@ -18,6 +18,7 @@
 
 @layer base {
   :root {
+    --bg-color: #102307;
     --bg-main: linear-gradient(160deg, #102307 0%, #17320b 45%, #eedc9a 100%);
     --bg-card: rgba(255, 255, 255, 0.08);
     --text-primary: #ffffff;
@@ -25,12 +26,14 @@
   }
 
   [data-theme="sakura"] {
+    --bg-color: #2d0a1a;
     --bg-main: linear-gradient(160deg, #2d0a1a 0%, #3e1222 45%, #ffeb99 100%);
     --bg-card: rgba(61, 15, 34, 0.6);
     --accent: #ff85a1;
   }
 
   [data-theme="moon"] {
+    --bg-color: #0a0e1a;
     --bg-main: linear-gradient(160deg, #0a0e1a 0%, #0d122b 45%, #fff3ad 100%);
     --bg-card: rgba(15, 20, 42, 0.6);
     --accent: #a5b4fc;
@@ -40,10 +43,14 @@
   body {
     width: 100%;
     height: 100%;
-    min-height: 100dvh;
+    min-height: 100%;
     overscroll-behavior: none;
     overflow: hidden;
-    background: var(--bg-main);
+    background-color: var(--bg-color);
+    background-image: var(--bg-main);
+    background-attachment: fixed;
+    background-position: center;
+    background-size: cover;
   }
 
   body {
@@ -54,7 +61,7 @@
   #root {
     width: 100%;
     height: 100%;
-    min-height: 100dvh;
+    min-height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior-y: none;
