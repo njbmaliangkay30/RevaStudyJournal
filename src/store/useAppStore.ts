@@ -114,6 +114,19 @@ const syncDailyStats = async (userId: string, todayStr: string, newToday: number
   }
 };
 
+const updateAppThemeColor = (theme: Theme) => {
+  document.documentElement.setAttribute('data-theme', theme);
+  const metaThemeColor = document.querySelector("meta[name=theme-color]");
+  let color = "#102307";
+  if (theme === 'sakura') color = "#2d0a1a";
+  else if (theme === 'moon') color = "#0a0e1a";
+  
+  if (metaThemeColor) {
+    metaThemeColor.setAttribute("content", color);
+  }
+  document.documentElement.style.backgroundColor = color;
+};
+
 export const useAppStore = create<AppState>((set, get) => ({
   profile: null,
   name: "Peri kecilku",
@@ -165,10 +178,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const addStudyTime = (seconds: number) => {
       if (seconds <= 0) return;
       
+      const userId = get().profile?.id || 'guest';
       const d = new Date();
       const todayStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
       
-      const todayKey = `study_time_${todayStr}`;
+      const todayKey = `study_time_${userId}_${todayStr}`;
       const currentToday = parseInt(localStorage.getItem(todayKey) || "0");
       const newToday = currentToday + seconds;
       localStorage.setItem(todayKey, newToday.toString());
@@ -182,15 +196,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       // Sync to supabase
-      const userId = get().profile?.id;
-      if (userId) {
-        syncDailyStats(userId, todayStr, newToday, null);
+      const currentProfileId = get().profile?.id;
+      if (currentProfileId) {
+        syncDailyStats(currentProfileId, todayStr, newToday, null);
         if (blockId) {
           const blockTodayKey = `study_time_block_today_${blockId}_${todayStr}`;
           const currentBlockToday = parseInt(localStorage.getItem(blockTodayKey) || "0");
           const newBlockToday = currentBlockToday + seconds;
           localStorage.setItem(blockTodayKey, newBlockToday.toString());
-          syncDailyStats(userId, todayStr, newBlockToday, blockId);
+          syncDailyStats(currentProfileId, todayStr, newBlockToday, blockId);
 
           supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
         }
@@ -218,9 +232,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (timerIsActive) {
       const elapsed = Math.max(0, Math.floor((Date.now() - timerLastStartTime) / 1000));
       if (elapsed > 0) {
+        const userId = get().profile?.id || 'guest';
         const d = new Date();
         const todayStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
-        const todayKey = `study_time_${todayStr}`;
+        const todayKey = `study_time_${userId}_${todayStr}`;
         const currentToday = parseInt(localStorage.getItem(todayKey) || "0");
         const newToday = currentToday + elapsed;
         localStorage.setItem(todayKey, newToday.toString());
@@ -233,15 +248,15 @@ export const useAppStore = create<AppState>((set, get) => ({
           localStorage.setItem(blockKey, newBlock.toString());
         }
 
-        const userId = get().profile?.id;
-        if (userId) {
-          syncDailyStats(userId, todayStr, newToday, null);
+        const currentProfileId = get().profile?.id;
+        if (currentProfileId) {
+          syncDailyStats(currentProfileId, todayStr, newToday, null);
           if (blockId) {
             const blockTodayKey = `study_time_block_today_${blockId}_${todayStr}`;
             const currentBlockToday = parseInt(localStorage.getItem(blockTodayKey) || "0");
             const newBlockToday = currentBlockToday + elapsed;
             localStorage.setItem(blockTodayKey, newBlockToday.toString());
-            syncDailyStats(userId, todayStr, newBlockToday, blockId);
+            syncDailyStats(currentProfileId, todayStr, newBlockToday, blockId);
 
             supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
           }
@@ -263,9 +278,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       const elapsed = Math.max(0, Math.floor((Date.now() - timerLastStartTime) / 1000));
       if (elapsed > 0) {
         set({ timerLastStartTime: Date.now(), timerAccumulatedTime: timerAccumulatedTime + elapsed });
+        const userId = get().profile?.id || 'guest';
         const d = new Date();
         const todayStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
-        const todayKey = `study_time_${todayStr}`;
+        const todayKey = `study_time_${userId}_${todayStr}`;
         const currentToday = parseInt(localStorage.getItem(todayKey) || "0");
         const newToday = currentToday + elapsed;
         localStorage.setItem(todayKey, newToday.toString());
@@ -278,15 +294,15 @@ export const useAppStore = create<AppState>((set, get) => ({
           localStorage.setItem(blockKey, newBlock.toString());
         }
 
-        const userId = get().profile?.id;
-        if (userId) {
-          syncDailyStats(userId, todayStr, newToday, null);
+        const currentProfileId = get().profile?.id;
+        if (currentProfileId) {
+          syncDailyStats(currentProfileId, todayStr, newToday, null);
           if (blockId) {
             const blockTodayKey = `study_time_block_today_${blockId}_${todayStr}`;
             const currentBlockToday = parseInt(localStorage.getItem(blockTodayKey) || "0");
             const newBlockToday = currentBlockToday + elapsed;
             localStorage.setItem(blockTodayKey, newBlockToday.toString());
-            syncDailyStats(userId, todayStr, newBlockToday, blockId);
+            syncDailyStats(currentProfileId, todayStr, newBlockToday, blockId);
 
             supabase.from('study_blocks').update({ time_spent: newBlock }).eq('id', blockId).then();
           }
@@ -573,7 +589,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setTheme: (theme) => {
-    document.documentElement.setAttribute('data-theme', theme);
+    updateAppThemeColor(theme);
     set({ theme });
     
     // Persist to DB if user is logged in
@@ -609,7 +625,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           coins: data.coins || 0, 
           theme: (data.theme as Theme) || 'light' 
         });
-        document.documentElement.setAttribute('data-theme', data.theme || 'light');
+        updateAppThemeColor(data.theme || 'light');
         
         // Fetch active block and its progress
         await get().fetchActiveBlock(userId);
@@ -642,14 +658,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
 
         if (statsData) {
-          let todayDb = parseInt(localStorage.getItem(`study_time_${todayStr}`) || "0");
-          let yesterdayDb = parseInt(localStorage.getItem(`study_time_${yesterdayStr}`) || "0");
+          let todayDb = parseInt(localStorage.getItem(`study_time_${userId}_${todayStr}`) || "0");
+          let yesterdayDb = parseInt(localStorage.getItem(`study_time_${userId}_${yesterdayStr}`) || "0");
           statsData.forEach(s => {
             if (s.date_str === todayStr) todayDb = Math.max(todayDb, s.time_spent || 0);
             if (s.date_str === yesterdayStr) yesterdayDb = Math.max(yesterdayDb, s.time_spent || 0);
           });
-          localStorage.setItem(`study_time_${todayStr}`, todayDb.toString());
-          localStorage.setItem(`study_time_${yesterdayStr}`, yesterdayDb.toString());
+          localStorage.setItem(`study_time_${userId}_${todayStr}`, todayDb.toString());
+          localStorage.setItem(`study_time_${userId}_${yesterdayStr}`, yesterdayDb.toString());
         }
       } else if (error && error.code === 'PGRST116') {
         const PERMANENT_UID = 'c097b441-d5c6-4559-abd3-a8a36274054b';

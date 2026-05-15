@@ -41,6 +41,7 @@
     height: 100%;
     overscroll-behavior: none;
     overflow: hidden;
+    background-color: #102307;
   }
 
   body {

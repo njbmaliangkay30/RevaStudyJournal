@@ -56,8 +56,8 @@ export const Dashboard: React.FC = () => {
       }
 
       // Check localStorage for more recent today data
-      const localToday = parseInt(localStorage.getItem(`study_time_${todayStr}`) || "0");
-      const localYesterday = parseInt(localStorage.getItem(`study_time_${yesterdayStr}`) || "0");
+      const localToday = parseInt(localStorage.getItem(`study_time_${profile.id}_${todayStr}`) || "0");
+      const localYesterday = parseInt(localStorage.getItem(`study_time_${profile.id}_${yesterdayStr}`) || "0");
 
       setDailyStats({ 
         today: Math.max(tStr, localToday), 

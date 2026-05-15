@@ -37,9 +37,10 @@ export const PomodoroTimer: React.FC = () => {
         bTime = parseInt(localStorage.getItem(`study_time_block_${useAppStore.getState().blockId}`) || "0");
       }
 
+      const uid = useAppStore.getState().profile?.id || 'guest';
       setDailyStats({ 
-        today: parseInt(localStorage.getItem(`study_time_${todayStr}`) || "0"), 
-        yesterday: parseInt(localStorage.getItem(`study_time_${yesterdayStr}`) || "0"),
+        today: parseInt(localStorage.getItem(`study_time_${uid}_${todayStr}`) || "0"), 
+        yesterday: parseInt(localStorage.getItem(`study_time_${uid}_${yesterdayStr}`) || "0"),
         currentBlock: bTime
       });
       // In background fetch real from supabase if needed, but localstorage is right if used on same device

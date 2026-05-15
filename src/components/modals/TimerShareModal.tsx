@@ -38,7 +38,8 @@ export const TimerShareModal: React.FC = () => {
       setParticles(newParticles);
       
       const todayStr = new Date().toISOString().split('T')[0];
-      setTodayStored(parseInt(localStorage.getItem(`study_time_${todayStr}`) || "0"));
+      const uid = useAppStore.getState().profile?.id || 'guest';
+      setTodayStored(parseInt(localStorage.getItem(`study_time_${uid}_${todayStr}`) || "0"));
       if (blockId) {
         setBlockStored(parseInt(localStorage.getItem(`study_time_block_${blockId}`) || "0"));
       }
